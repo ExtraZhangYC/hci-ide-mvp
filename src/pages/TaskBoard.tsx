@@ -1,0 +1,322 @@
+import { useState } from "react";
+import {
+  Play,
+  Workflow,
+  StepForward,
+  FastForward,
+  Hand,
+  Scale,
+  FileCheck2,
+  Square,
+  Target,
+  FolderTree,
+  FlaskConical,
+  ShieldAlert,
+  Sparkles,
+} from "lucide-react";
+import { useDemoStore } from "@/store/useDemoStore";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
+import { Badge } from "@/components/ui/Badge";
+import { WorkflowCanvas } from "@/components/WorkflowCanvas";
+import { NodeInspector } from "@/components/NodeInspector";
+import { InterveneDialog } from "@/components/InterveneDialog";
+import { DeliveryReport } from "@/components/DeliveryReport";
+import { taskUnderstanding } from "@/data/deliveryReport";
+import type { DemoStage } from "@/types";
+
+const stageBadge: Record<DemoStage, { label: string; variant: "slate" | "blue" | "amber" | "violet" | "green" }> = {
+  idle: { label: "待组队", variant: "slate" },
+  team_configured: { label: "团队就绪", variant: "blue" },
+  analyzing: { label: "需求分析中", variant: "blue" },
+  workflow_recommended: { label: "已推荐流程", variant: "blue" },
+  executing: { label: "执行中", variant: "blue" },
+  intervention: { label: "用户介入", variant: "amber" },
+  council: { label: "议会裁决中", variant: "violet" },
+  delivery: { label: "已交付", variant: "green" },
+};
+
+export function TaskBoard() {
+  const stage = useDemoStore((s) => s.stage);
+  const taskText = useDemoStore((s) => s.taskText);
+  const setTaskText = useDemoStore((s) => s.setTaskText);
+  const startTask = useDemoStore((s) => s.startTask);
+  const useRecommendedWorkflow = useDemoStore((s) => s.useRecommendedWorkflow);
+  const nextStep = useDemoStore((s) => s.nextStep);
+  const autoRun = useDemoStore((s) => s.autoRun);
+  const stopAutoRun = useDemoStore((s) => s.stopAutoRun);
+  const goToCouncil = useDemoStore((s) => s.goToCouncil);
+  const showDelivery = useDemoStore((s) => s.showDelivery);
+  const isAutoRunning = useDemoStore((s) => s.isAutoRunning);
+  const nodes = useDemoStore((s) => s.nodes);
+  const activeStepIndex = useDemoStore((s) => s.activeStepIndex);
+  const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
+
+  const [interveneOpen, setInterveneOpen] = useState(false);
+
+  const activeNode =
+    stage === "executing" && activeStepIndex >= 0
+      ? nodes[activeStepIndex]
+      : null;
+
+  const showStart = stage === "idle" || stage === "team_configured";
+  const showRecommend =
+    stage === "analyzing" || stage === "workflow_recommended";
+  const showExecuteControls = stage === "executing";
+  const showIntervene = activeNode?.id === "work";
+  const showCouncil =
+    activeNode?.id === "human-gate" || activeNode?.id === "council";
+  const showDelivered = stage === "delivery";
+
+  const hasWorkflow = stage !== "idle" && stage !== "team_configured" && stage !== "analyzing";
+
+  return (
+    <div className="grid h-full grid-cols-[1fr_400px] overflow-hidden">
+      {/* Left column */}
+      <div className="flex min-w-0 flex-col overflow-hidden">
+        {/* Command Bar */}
+        <div className="border-b border-slate-800/80 px-5 py-4">
+          <div className="mb-2 flex items-center gap-2">
+            <h1 className="text-lg font-semibold text-white">Task Board</h1>
+            <Badge variant={stageBadge[stage].variant}>
+              {stageBadge[stage].label}
+            </Badge>
+            {assignedAgentIds.length < 3 && (
+              <span className="text-xs text-amber-400/80">
+                建议先在 Agent Board 组建至少 3 名 Agent
+              </span>
+            )}
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-[11px] text-slate-500">
+                任务描述
+              </label>
+              <Textarea
+                value={taskText}
+                onChange={(e) => setTaskText(e.target.value)}
+                rows={2}
+                disabled={stage !== "idle" && stage !== "team_configured"}
+                className="disabled:opacity-70"
+              />
+            </div>
+            <div className="flex flex-col gap-2 pb-0.5">
+              {showStart && (
+                <Button variant="primary" onClick={startTask}>
+                  <Play className="h-4 w-4" /> Start Task
+                </Button>
+              )}
+              {showRecommend && (
+                <Button variant="primary" onClick={useRecommendedWorkflow}>
+                  <Workflow className="h-4 w-4" /> Use Recommended Workflow
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Canvas / placeholder */}
+        <div className="relative min-h-0 flex-1">
+          {hasWorkflow ? (
+            <WorkflowCanvas />
+          ) : (
+            <EmptyCanvas stage={stage} />
+          )}
+        </div>
+
+        {/* Demo Controls */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/80 bg-ink-900/60 px-5 py-3">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Demo Controls
+          </span>
+
+          {showExecuteControls && (
+            <>
+              <Button variant="secondary" size="sm" onClick={nextStep}>
+                <StepForward className="h-4 w-4" /> Next Step
+              </Button>
+              {isAutoRunning ? (
+                <Button variant="warning" size="sm" onClick={stopAutoRun}>
+                  <Square className="h-4 w-4" /> 暂停
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" onClick={autoRun}>
+                  <FastForward className="h-4 w-4" /> Auto Run
+                </Button>
+              )}
+            </>
+          )}
+
+          {showIntervene && (
+            <Button
+              variant="warning"
+              size="sm"
+              onClick={() => setInterveneOpen(true)}
+            >
+              <Hand className="h-4 w-4" /> Intervene
+            </Button>
+          )}
+
+          {showCouncil && (
+            <Button variant="council" size="sm" onClick={goToCouncil}>
+              <Scale className="h-4 w-4" /> Go to Council
+            </Button>
+          )}
+
+          {showDelivered && (
+            <Button variant="success" size="sm" onClick={showDelivery}>
+              <FileCheck2 className="h-4 w-4" /> View Delivery Report
+            </Button>
+          )}
+
+          {!showExecuteControls &&
+            !showIntervene &&
+            !showCouncil &&
+            !showDelivered &&
+            !showStart &&
+            !showRecommend && (
+              <span className="text-xs text-slate-600">
+                根据流程进度自动显示可用操作
+              </span>
+            )}
+        </div>
+      </div>
+
+      {/* Right column */}
+      <aside className="min-h-0 border-l border-slate-800/80 bg-ink-900/40">
+        {stage === "delivery" ? (
+          <DeliveryReport />
+        ) : stage === "analyzing" || stage === "workflow_recommended" ? (
+          <TaskUnderstandingPanel />
+        ) : stage === "idle" || stage === "team_configured" ? (
+          <IdleRightPanel />
+        ) : (
+          <NodeInspector />
+        )}
+      </aside>
+
+      <InterveneDialog
+        open={interveneOpen}
+        onClose={() => setInterveneOpen(false)}
+      />
+    </div>
+  );
+}
+
+function EmptyCanvas({ stage }: { stage: DemoStage }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-800 text-slate-500">
+        <Workflow className="h-7 w-7" />
+      </div>
+      <div className="text-sm text-slate-400">
+        {stage === "analyzing"
+          ? "需求分析完成，点击 “Use Recommended Workflow” 生成泳道图"
+          : "输入任务并点击 “Start Task” 开始"}
+      </div>
+      <div className="text-xs text-slate-600">
+        泳道图将展示 6 条 Lane × 10 个节点的多 Agent 执行流程
+      </div>
+    </div>
+  );
+}
+
+function TaskUnderstandingPanel() {
+  const useRecommendedWorkflow = useDemoStore((s) => s.useRecommendedWorkflow);
+  const stage = useDemoStore((s) => s.stage);
+
+  const rows = [
+    {
+      icon: Target,
+      title: "需求目标",
+      tone: "text-blue-300",
+      content: taskUnderstanding.goal,
+    },
+    {
+      icon: FolderTree,
+      title: "涉及模块",
+      tone: "text-cyan-300",
+      content: taskUnderstanding.modules.join("、"),
+    },
+    {
+      icon: FlaskConical,
+      title: "测试目录",
+      tone: "text-emerald-300",
+      content: taskUnderstanding.testDir,
+    },
+    {
+      icon: ShieldAlert,
+      title: "潜在风险",
+      tone: "text-rose-300",
+      content: taskUnderstanding.risks.join("、"),
+    },
+    {
+      icon: Sparkles,
+      title: "推荐 Workflow",
+      tone: "text-violet-300",
+      content: taskUnderstanding.workflow,
+    },
+  ];
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-slate-800/80 p-5">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-blue-400" />
+          <h2 className="text-base font-semibold text-white">
+            Task Understanding
+          </h2>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          系统已完成需求结构化分析（mock）
+        </p>
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto p-5">
+        {rows.map((r) => {
+          const Icon = r.icon;
+          return (
+            <div
+              key={r.title}
+              className="rounded-lg border border-slate-800 bg-ink-900/60 p-3 animate-fade-in"
+            >
+              <div
+                className={`mb-1 flex items-center gap-1.5 text-[11px] font-semibold ${r.tone}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {r.title}
+              </div>
+              <p className="text-xs leading-relaxed text-slate-300">
+                {r.content}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {stage === "analyzing" && (
+        <div className="border-t border-slate-800/80 p-4">
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={useRecommendedWorkflow}
+          >
+            <Workflow className="h-4 w-4" /> Use Recommended Workflow
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IdleRightPanel() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center text-slate-500">
+      <Play className="mb-3 h-10 w-10 text-slate-700" />
+      <p className="text-sm">输入任务并点击 Start Task</p>
+      <p className="text-xs text-slate-600">
+        系统会先分析需求，再推荐多 Agent 执行流程
+      </p>
+    </div>
+  );
+}
