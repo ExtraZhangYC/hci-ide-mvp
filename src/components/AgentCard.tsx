@@ -12,6 +12,7 @@ type Props = {
   assigned: boolean;
   onSelect: () => void;
   onAssign: () => void;
+  showAssign?: boolean;
 };
 
 export function AgentCard({
@@ -20,6 +21,7 @@ export function AgentCard({
   assigned,
   onSelect,
   onAssign,
+  showAssign = true,
 }: Props) {
   return (
     <Card
@@ -73,25 +75,27 @@ export function AgentCard({
           <span>{agent.tokenCost}</span>
         </div>
 
-        <Button
-          variant={assigned ? "success" : "primary"}
-          size="sm"
-          className="mt-4 w-full"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAssign();
-          }}
-        >
-          {assigned ? (
-            <>
-              <Check className="h-4 w-4" /> 已加入项目
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" /> Assign to Project
-            </>
-          )}
-        </Button>
+        {showAssign && (
+          <Button
+            variant={assigned ? "success" : "primary"}
+            size="sm"
+            className="mt-4 w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssign();
+            }}
+          >
+            {assigned ? (
+              <>
+                <Check className="h-4 w-4" /> 已加入项目
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Assign to Project
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </Card>
   );
