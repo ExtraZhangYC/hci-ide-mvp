@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { WorkflowCanvas } from "@/components/WorkflowCanvas";
+import { ExecutionTimeline } from "@/components/ExecutionTimeline";
 import { NodeInspector } from "@/components/NodeInspector";
 import { InterveneDialog } from "@/components/InterveneDialog";
 import { DeliveryReport } from "@/components/DeliveryReport";
@@ -51,6 +52,9 @@ export function TaskBoard() {
   const nodes = useDemoStore((s) => s.nodes);
   const activeStepIndex = useDemoStore((s) => s.activeStepIndex);
   const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
+  const activeTaskId = useDemoStore((s) => s.activeTaskId);
+  const tasks = useDemoStore((s) => s.tasks);
+  const activeTask = tasks.find((t) => t.id === activeTaskId);
 
   const [interveneOpen, setInterveneOpen] = useState(false);
 
@@ -77,13 +81,15 @@ export function TaskBoard() {
         {/* Command Bar */}
         <div className="border-b border-slate-800/80 px-5 py-4">
           <div className="mb-2 flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-white">Task Board</h1>
+            <h1 className="text-lg font-semibold text-white">
+              {activeTask?.title ?? "Task Board"}
+            </h1>
             <Badge variant={stageBadge[stage].variant}>
               {stageBadge[stage].label}
             </Badge>
             {assignedAgentIds.length < 3 && (
               <span className="text-xs text-amber-400/80">
-                建议先在 Agent Board 组建至少 3 名 Agent
+                当前团队人数不足（建议至少 3 名）。可前往 Agent Board → 自定义团队
               </span>
             )}
           </div>
@@ -123,6 +129,9 @@ export function TaskBoard() {
             <EmptyCanvas stage={stage} />
           )}
         </div>
+
+        {/* Execution timeline */}
+        <ExecutionTimeline />
 
         {/* Demo Controls */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/80 bg-ink-900/60 px-5 py-3">
@@ -211,11 +220,11 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
       </div>
       <div className="text-sm text-slate-400">
         {stage === "analyzing"
-          ? "需求分析完成，点击 “Use Recommended Workflow” 生成泳道图"
+          ? "需求分析完成，点击 “Use Recommended Workflow” 开始执行并逐步生成泳道图"
           : "输入任务并点击 “Start Task” 开始"}
       </div>
       <div className="text-xs text-slate-600">
-        泳道图将展示 6 条 Lane × 10 个节点的多 Agent 执行流程
+        执行过程中将动态生成 6 条 Lane 上的节点，最多 10 个步骤
       </div>
     </div>
   );
