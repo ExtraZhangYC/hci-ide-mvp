@@ -40,11 +40,11 @@ export function NodeInspector() {
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Intervention feedback banner */}
       {feedback && (
-        <div className="m-3 mb-0 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-amber-200">
+        <div className="m-3 mb-0 rounded-md border border-human/40 bg-human/10 p-3 shadow-glow-human">
+          <div className="callsign flex items-center gap-2 text-[10px] text-human">
             <ShieldCheck className="h-4 w-4" /> 介入已生效
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-amber-100/90">
+          <p className="mt-1 text-xs leading-relaxed text-human-soft/90">
             {feedback}
           </p>
         </div>
@@ -52,7 +52,7 @@ export function NodeInspector() {
 
       {/* Node detail */}
       <div className="p-4">
-        <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="callsign mb-2 flex items-center gap-2 text-[10px] text-slate-500">
           <MousePointerSquareDashed className="h-3.5 w-3.5" />
           Node Inspector
         </div>
@@ -63,17 +63,17 @@ export function NodeInspector() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-base font-semibold text-white">
+                <div className="font-display text-base font-semibold text-white">
                   {node.label}
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="callsign text-[10px] text-slate-500">
                   {node.lane} · {node.owner}
                 </div>
               </div>
               <NodeStatusPill status={node.status} />
             </div>
 
-            <p className="rounded-lg border border-slate-800 bg-ink-900/60 p-3 text-xs leading-relaxed text-slate-300">
+            <p className="rounded-md border border-line bg-ink-900/60 p-3 text-xs leading-relaxed text-slate-300">
               {node.summary}
             </p>
 
@@ -97,11 +97,11 @@ export function NodeInspector() {
               <p className="mt-1 text-xs text-rose-100/80">{node.risk}</p>
             </div>
 
-            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-300">
+            <div className="rounded-md border border-command/20 bg-command/5 p-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-command-soft">
                 <ArrowRight className="h-3.5 w-3.5" /> 下一步
               </div>
-              <p className="mt-1 text-xs text-blue-100/80">{node.nextAction}</p>
+              <p className="mt-1 text-xs text-slate-300">{node.nextAction}</p>
             </div>
           </div>
         )}
@@ -109,8 +109,8 @@ export function NodeInspector() {
 
       {/* Intervention rules */}
       {rules.length > 0 && (
-        <div className="border-t border-slate-800/80 p-4">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+        <div className="border-t border-line p-4">
+          <div className="callsign mb-2 flex items-center gap-2 text-[10px] text-human">
             <ShieldCheck className="h-3.5 w-3.5" />
             用户介入规则 · {rules.length}
           </div>
@@ -118,9 +118,9 @@ export function NodeInspector() {
             {rules.map((r, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3"
+                className="rounded-md border border-human/30 bg-human/5 p-3"
               >
-                <p className="text-xs text-amber-100">{r.text}</p>
+                <p className="text-xs text-human-soft">{r.text}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <Badge variant="amber">{scopeLabels[r.scope]}</Badge>
                   {r.affectedAgents.map((a) => (
@@ -137,10 +137,10 @@ export function NodeInspector() {
 
       {/* Event log */}
       {logs.length > 0 && (
-        <div className="border-t border-slate-800/80 p-4">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="border-t border-line p-4">
+          <div className="callsign mb-2 flex items-center gap-2 text-[10px] text-slate-500">
             <ScrollText className="h-3.5 w-3.5" />
-            执行日志
+            执行日志 · EVENT LOG
           </div>
           <div className="space-y-1.5">
             {logs.map((l, i) => (

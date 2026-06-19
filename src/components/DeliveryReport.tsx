@@ -32,13 +32,16 @@ export function DeliveryReport() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="border-b border-slate-800/80 p-5">
+      <div className="border-b border-line p-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-300">
             <FileCheck2 className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white">
+            <div className="callsign text-[9px] text-slate-600">
+              MISSION REPORT
+            </div>
+            <h2 className="font-display text-base font-semibold text-white">
               Delivery Report
             </h2>
             <p className="text-xs text-slate-500">AI 工程团队任务交付汇报</p>
@@ -94,9 +97,9 @@ export function DeliveryReport() {
               {rules.map((r, i) => (
                 <div
                   key={i}
-                  className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5"
+                  className="rounded-md border border-human/30 bg-human/5 p-2.5"
                 >
-                  <p className="text-xs text-amber-100">{r.text}</p>
+                  <p className="text-xs text-human-soft">{r.text}</p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     <Badge variant="amber">{scopeLabels[r.scope]}</Badge>
                     {r.affectedAgents.map((a) => (
@@ -168,8 +171,8 @@ export function DeliveryReport() {
 
 const toneMap = {
   emerald: "text-emerald-300",
-  blue: "text-blue-300",
-  amber: "text-amber-300",
+  blue: "text-command-soft",
+  amber: "text-human",
   violet: "text-violet-300",
   rose: "text-rose-300",
   slate: "text-slate-300",
@@ -189,7 +192,7 @@ function Section({
   return (
     <section>
       <div
-        className={`mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider ${toneMap[tone]}`}
+        className={`callsign mb-2 flex items-center gap-1.5 text-[10px] ${toneMap[tone]}`}
       >
         <Icon className="h-3.5 w-3.5" />
         {title}
@@ -209,9 +212,11 @@ function Stat({
   tone: keyof typeof toneMap;
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-ink-900/60 p-2.5 text-center">
-      <div className={`text-lg font-bold ${toneMap[tone]}`}>{value}</div>
-      <div className="text-[10px] text-slate-500">{label}</div>
+    <div className="rounded-md border border-line bg-ink-900/60 p-2.5 text-center">
+      <div className={`font-mono text-lg font-bold tabular ${toneMap[tone]}`}>
+        {value}
+      </div>
+      <div className="callsign mt-0.5 text-[8px] text-slate-500">{label}</div>
     </div>
   );
 }
