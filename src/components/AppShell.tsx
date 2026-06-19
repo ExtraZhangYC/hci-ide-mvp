@@ -251,7 +251,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="flex items-center gap-2 px-4">
             <span className="callsign text-[9px] text-slate-600">NODE</span>
             <span className="font-medium text-slate-200">
-              {activeNode ? activeNode.label : "—"}
+              {activeNode ? `${activeNode.code} ${activeNode.label}` : "—"}
             </span>
           </span>
           <span className="h-3.5 w-px bg-line-bright" />

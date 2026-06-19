@@ -115,12 +115,15 @@ export function DeliveryReport() {
         </Section>
 
         {/* Council decision */}
-        <Section icon={Scale} title="Council 决策记录" tone="violet">
+        <Section icon={Scale} title="Council 决策记录 · CouncilDecision" tone="violet">
           {confirmedOption ? (
             <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="violet">已采纳</Badge>
-                <span className="text-sm font-semibold text-violet-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="violet">verdict=select</Badge>
+                <span className="font-mono text-[10px] text-slate-500">
+                  selected_proposal_id={confirmedOption.id}
+                </span>
+                <span className="w-full text-sm font-semibold text-violet-200">
                   {confirmedOption.title}
                 </span>
               </div>

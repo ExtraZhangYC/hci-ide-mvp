@@ -196,14 +196,14 @@ function buildLogContent(
 
   let lines = [...base.lines];
 
-  if (nodeId === "work" && interventionRules.length > 0) {
+  if (nodeId === "n7-executing" && interventionRules.length > 0) {
     lines = [...lines, ...buildInterventionLogLines(interventionRules[0].text)];
   }
 
   if (
-    nodeId === "gate-check" ||
-    nodeId === "security-review" ||
-    nodeId === "complete"
+    nodeId === "n13-gate" ||
+    nodeId === "n15-merge-auth" ||
+    nodeId === "n18-run-complete"
   ) {
     if (interventionRules.length > 0 && status === "done") {
       lines = [
@@ -219,7 +219,7 @@ function buildLogContent(
     }
   }
 
-  if (nodeId === "council" && confirmedCouncilOptionId) {
+  if (nodeId === "n14-council" && confirmedCouncilOptionId) {
     lines = [
       ...lines.filter((l) => l.tag !== "WAIT"),
       ...buildCouncilConfirmLogLines("Option A · Use RBAC"),

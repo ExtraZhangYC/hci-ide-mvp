@@ -1,5 +1,27 @@
-import type { AgentStatus, WorkflowNodeStatus } from "@/types";
+import type { AgentStatus, TaskStatusCore, WorkflowNodeStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
+
+type BadgeVariant = "slate" | "blue" | "green" | "red" | "amber" | "violet";
+
+/** 协调器 Task 主状态机 11 核心态 → 文案 + 配色 */
+const taskStatusMap: Record<TaskStatusCore, { label: string; variant: BadgeVariant }> = {
+  created: { label: "created · 已创建", variant: "slate" },
+  claimed: { label: "claimed · 已认领", variant: "blue" },
+  running: { label: "running · 执行中", variant: "blue" },
+  waiting_input: { label: "waiting_input · 等待输入", variant: "amber" },
+  pending_gate: { label: "pending_gate · 等 Gate", variant: "amber" },
+  pending_council: { label: "pending_council · 等议会", variant: "violet" },
+  reviewing: { label: "reviewing · 审查中", variant: "blue" },
+  blocked: { label: "blocked · 已阻断", variant: "red" },
+  completed: { label: "completed · 已完成", variant: "green" },
+  failed: { label: "failed · 失败", variant: "red" },
+  cancelled: { label: "cancelled · 已取消", variant: "slate" },
+};
+
+export function TaskStatusPill({ status }: { status: TaskStatusCore }) {
+  const s = taskStatusMap[status];
+  return <Badge variant={s.variant}>{s.label}</Badge>;
+}
 
 const agentStatusMap: Record<
   AgentStatus,

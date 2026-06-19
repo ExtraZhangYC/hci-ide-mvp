@@ -69,6 +69,9 @@ export function AgentCard({
             <div className="callsign text-[10px] text-slate-500">
               {agent.role}
             </div>
+            <div className="mt-0.5 truncate font-mono text-[9px] text-slate-600">
+              {agent.runtime.role_id} · {agent.runtime.driver_name}
+            </div>
           </div>
         </div>
 

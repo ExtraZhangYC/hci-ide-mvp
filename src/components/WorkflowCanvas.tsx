@@ -25,12 +25,22 @@ const X_OFFSET = 170;
 
 const laneAccent: Record<string, string> = {
   User: "border-l-human/70", // the human's own lane glows warm
-  System: "border-l-slate-500/60",
-  // Agent 泳道：统一使用同一种头色，避免把注意力分散到子角色上
-  Backend: "border-l-cyan-500/60",
-  Test: "border-l-cyan-500/60",
-  Security: "border-l-cyan-500/60",
+  Coord: "border-l-command/70", // C · 协调编排 — command azure
+  Context: "border-l-teal-500/60", // B · 角色记忆
+  Driver: "border-l-sky-500/60", // A · Driver 执行
+  Gate: "border-l-indigo-500/60", // D · Hook/Gate
   Council: "border-l-violet-500/60",
+  Merge: "border-l-emerald-500/60",
+};
+
+// 责任方角标配色（A/B/C/D/User/Merger）
+const directionStyles: Record<string, string> = {
+  User: "bg-human/15 text-human-soft",
+  A: "bg-sky-500/15 text-sky-300",
+  B: "bg-teal-500/15 text-teal-300",
+  C: "bg-command/15 text-command-soft",
+  D: "bg-indigo-500/15 text-indigo-300",
+  Merger: "bg-emerald-500/15 text-emerald-300",
 };
 
 const statusStyles: Record<
@@ -73,27 +83,41 @@ type StepNodeData = {
 function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
   const { wf, selected, isNew } = data;
   const s = statusStyles[wf.status];
+  // 节点上展示的状态码：优先 canonical TaskStatus，否则用 statusNote 占位
+  const statusCode = wf.taskStatus ?? wf.statusNote ?? "—";
   return (
     <div
       className={cn(
-        "w-[178px] rounded-md border px-3 py-2.5 transition-all cursor-pointer",
+        "w-[182px] rounded-md border px-3 py-2.5 transition-all cursor-pointer",
         s.box,
         selected && "ring-2 ring-white/40",
         isNew && "animate-fade-in"
       )}
     >
       <Handle type="target" position={Position.Left} className="!opacity-0" />
-      <div className="flex items-center justify-between">
-        <span className="callsign text-[9px] text-slate-400">{wf.lane}</span>
+      <div className="flex items-center justify-between gap-1">
+        <span className="flex items-center gap-1">
+          <span className="font-mono text-[9px] font-semibold text-slate-300">
+            {wf.code}
+          </span>
+          <span
+            className={cn(
+              "rounded px-1 py-px font-mono text-[8px] font-semibold",
+              directionStyles[wf.direction] ?? "bg-slate-700/40 text-slate-400"
+            )}
+          >
+            {wf.direction}
+          </span>
+        </span>
         <span className={cn("led h-2 w-2", s.dot)} />
       </div>
-      <div className="mt-1 font-display text-sm font-semibold leading-tight">
+      <div className="mt-1 font-display text-[13px] font-semibold leading-tight">
         {wf.label}
       </div>
-      <div className="mt-1 truncate font-mono text-[10px] text-slate-400">
-        {wf.owner}
+      <div className="truncate text-[10px] text-slate-400">{wf.labelCn}</div>
+      <div className="mt-1.5 truncate font-mono text-[9px] text-slate-500">
+        {statusCode}
       </div>
-      <div className="callsign mt-1.5 text-[9px] opacity-80">{s.label}</div>
       <Handle type="source" position={Position.Right} className="!opacity-0" />
     </div>
   );
