@@ -23,9 +23,12 @@ export function AgentDetailPanel({ agent, assigned, onAssign }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-slate-800/80 p-5">
+      <div className="border-b border-line p-5">
+        <div className="callsign mb-2 text-[9px] text-slate-600">
+          PERSONNEL DOSSIER
+        </div>
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/30 to-violet-500/20 text-base font-bold text-blue-200">
+          <div className="flex h-12 w-12 items-center justify-center rounded-md border border-line-bright bg-gradient-to-br from-command/25 to-violet-500/15 font-mono text-base font-bold text-command-soft">
             {agent.name
               .split(" ")
               .map((w) => w[0])
@@ -33,10 +36,12 @@ export function AgentDetailPanel({ agent, assigned, onAssign }: Props) {
               .join("")}
           </div>
           <div>
-            <div className="text-base font-semibold text-white">
+            <div className="font-display text-base font-semibold text-white">
               {agent.name}
             </div>
-            <div className="text-xs text-slate-500">{agent.role}</div>
+            <div className="callsign text-[10px] text-slate-500">
+              {agent.role}
+            </div>
           </div>
           <div className="ml-auto">
             <AgentStatusPill status={agent.status} />
@@ -107,9 +112,7 @@ export function AgentDetailPanel({ agent, assigned, onAssign }: Props) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-      {children}
-    </h4>
+    <h4 className="callsign mb-2 text-[10px] text-slate-500">{children}</h4>
   );
 }
 
@@ -123,13 +126,13 @@ function Metric({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-ink-900/60 p-2.5">
-      <div className="text-[10px] text-slate-500">{label}</div>
+    <div className="rounded-md border border-line bg-ink-900/60 p-2.5">
+      <div className="callsign text-[8px] text-slate-500">{label}</div>
       <div
         className={
           accent
-            ? "text-sm font-semibold text-blue-300"
-            : "text-sm font-semibold text-slate-200"
+            ? "font-mono text-sm font-semibold tabular text-command-soft"
+            : "font-mono text-sm font-semibold tabular text-slate-200"
         }
       >
         {value}

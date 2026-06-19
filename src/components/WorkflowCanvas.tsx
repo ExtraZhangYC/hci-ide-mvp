@@ -22,7 +22,7 @@ const COL_GAP = 212;
 const X_OFFSET = 170;
 
 const laneAccent: Record<string, string> = {
-  User: "border-l-blue-500/60",
+  User: "border-l-human/70", // the human's own lane glows warm
   System: "border-l-slate-500/60",
   Backend: "border-l-cyan-500/60",
   Test: "border-l-emerald-500/60",
@@ -35,13 +35,13 @@ const statusStyles: Record<
   { box: string; dot: string; label: string }
 > = {
   pending: {
-    box: "border-slate-700 bg-ink-850 text-slate-400",
+    box: "border-line-bright bg-ink-850 text-slate-400",
     dot: "bg-slate-600",
     label: "待执行",
   },
   active: {
-    box: "border-blue-500 bg-blue-600/15 text-blue-100 ring-2 ring-blue-500/40 shadow-lg shadow-blue-900/30",
-    dot: "bg-blue-400 animate-pulse-ring",
+    box: "border-command bg-command/15 text-slate-100 shadow-glow",
+    dot: "bg-command animate-pulse-ring",
     label: "执行中",
   },
   done: {
@@ -55,8 +55,8 @@ const statusStyles: Record<
     label: "已阻塞",
   },
   updated: {
-    box: "border-amber-400/70 bg-amber-500/10 text-amber-100 border-dashed",
-    dot: "bg-amber-400",
+    box: "border-dashed border-human/70 bg-human/10 text-human-soft shadow-glow-human",
+    dot: "bg-human",
     label: "已被介入",
   },
 };
@@ -72,21 +72,23 @@ function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
   return (
     <div
       className={cn(
-        "w-[178px] rounded-xl border px-3 py-2.5 transition-all cursor-pointer",
+        "w-[178px] rounded-md border px-3 py-2.5 transition-all cursor-pointer",
         s.box,
         selected && "ring-2 ring-white/40"
       )}
     >
       <Handle type="target" position={Position.Left} className="!opacity-0" />
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">
-          {wf.lane}
-        </span>
-        <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+        <span className="callsign text-[9px] text-slate-400">{wf.lane}</span>
+        <span className={cn("led h-2 w-2", s.dot)} />
       </div>
-      <div className="mt-1 text-sm font-semibold leading-tight">{wf.label}</div>
-      <div className="mt-1 truncate text-[10px] text-slate-400">{wf.owner}</div>
-      <div className="mt-1.5 text-[10px] font-medium opacity-80">{s.label}</div>
+      <div className="mt-1 font-display text-sm font-semibold leading-tight">
+        {wf.label}
+      </div>
+      <div className="mt-1 truncate font-mono text-[10px] text-slate-400">
+        {wf.owner}
+      </div>
+      <div className="callsign mt-1.5 text-[9px] opacity-80">{s.label}</div>
       <Handle type="source" position={Position.Right} className="!opacity-0" />
     </div>
   );
@@ -96,12 +98,12 @@ function LaneNode({ data }: NodeProps<Node<{ label: string; lane: string; width:
   return (
     <div
       className={cn(
-        "h-[116px] rounded-r-lg border-l-4 bg-ink-900/30",
+        "h-[116px] rounded-r-md border-l-[3px] bg-ink-900/30",
         laneAccent[data.lane] ?? "border-l-slate-600"
       )}
       style={{ width: data.width }}
     >
-      <div className="px-3 py-2 text-xs font-semibold text-slate-400">
+      <div className="callsign px-3 py-2 text-[10px] text-slate-400">
         {data.label}
       </div>
     </div>

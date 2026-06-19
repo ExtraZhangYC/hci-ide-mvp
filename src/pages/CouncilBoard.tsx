@@ -43,10 +43,15 @@ export function CouncilBoard() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-slate-800/80 px-6 py-4">
+      <header className="border-b border-line px-6 py-4">
+        <div className="callsign mb-1 text-[10px] text-violet-300">
+          // 03 · 裁决
+        </div>
         <div className="flex items-center gap-2">
           <Scale className="h-5 w-5 text-violet-400" />
-          <h1 className="text-lg font-semibold text-white">Council Board</h1>
+          <h1 className="font-display text-lg font-semibold tracking-tight text-white">
+            Council Board
+          </h1>
           <Badge variant="violet">需要用户裁决</Badge>
         </div>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
@@ -92,14 +97,14 @@ export function CouncilBoard() {
                   key={opt.id}
                   onClick={() => setSelectedId(opt.id)}
                   className={cn(
-                    "flex flex-col rounded-xl border p-4 text-left transition-all",
+                    "flex flex-col rounded-md border p-4 text-left transition-all",
                     active
                       ? "border-violet-500/60 bg-violet-600/10 ring-1 ring-violet-500/40"
-                      : "border-slate-800 bg-ink-850/60 hover:border-slate-600"
+                      : "border-line bg-ink-850/60 hover:border-line-bright"
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold text-white">
+                    <span className="font-display text-sm font-semibold text-white">
                       {opt.title}
                     </span>
                     {opt.recommended && (
@@ -207,14 +212,17 @@ export function CouncilBoard() {
             )}
           </div>
 
-          <div className="space-y-2 border-t border-slate-800/80 p-4">
+          <div className="space-y-2 border-t border-line p-4">
+            <div className="callsign mb-1 text-[9px] text-human/80">
+              ▸ 最终裁决权属于你
+            </div>
             <Button
-              variant="council"
+              variant="warning"
               className="w-full"
               disabled={!!confirmedId}
               onClick={() => confirmCouncilOption(selectedId)}
             >
-              <CheckCircle2 className="h-4 w-4" />
+              <Gavel className="h-4 w-4" />
               {selectedId === "option-a"
                 ? "Confirm Option A"
                 : `Confirm ${selectedOption.title.split(" · ")[0]}`}
@@ -241,7 +249,7 @@ function PanelTitle({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-slate-800/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+    <div className="callsign flex items-center gap-2 border-b border-line px-4 py-3 text-[10px] text-slate-400">
       <Icon className="h-3.5 w-3.5" />
       {children}
     </div>

@@ -1,4 +1,4 @@
-import { Check, Plus, TrendingUp, History, AlertTriangle } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import type { Agent } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -14,6 +14,14 @@ type Props = {
   onAssign: () => void;
 };
 
+const statusLed: Record<Agent["status"], string> = {
+  idle: "bg-slate-500",
+  working: "bg-command",
+  waiting: "bg-human",
+  reviewing: "bg-violet-400",
+  done: "bg-emerald-400",
+};
+
 export function AgentCard({
   agent,
   selected,
@@ -21,42 +29,55 @@ export function AgentCard({
   onSelect,
   onAssign,
 }: Props) {
+  const initials = agent.name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("");
+
   return (
     <Card
       onClick={onSelect}
       className={cn(
-        "cursor-pointer transition-all hover:border-slate-600 hover:shadow-lg hover:shadow-black/30",
-        selected && "border-blue-500/60 ring-1 ring-blue-500/40",
-        assigned && "bg-blue-600/5"
+        "cursor-pointer overflow-hidden transition-all hover:border-line-bright",
+        selected && "border-command/60 shadow-glow",
+        assigned && "bg-command/[0.04]"
       )}
     >
+      {/* dossier header strip — callsign + live status */}
+      <div className="flex items-center justify-between border-b border-line bg-ink-900/50 px-4 py-1.5">
+        <span className="callsign text-[9px] text-slate-500">
+          DOSSIER · {initials}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className={cn("led h-1.5 w-1.5", statusLed[agent.status])} />
+          <AgentStatusPill status={agent.status} />
+        </span>
+      </div>
+
       <div className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/30 to-violet-500/20 text-sm font-bold text-blue-200">
-              {agent.name
-                .split(" ")
-                .map((w) => w[0])
-                .slice(0, 2)
-                .join("")}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md border border-line-bright bg-gradient-to-br from-command/25 to-violet-500/15 font-mono text-sm font-bold text-command-soft">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate font-display text-sm font-semibold text-slate-100">
+              {agent.name}
             </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-100">
-                {agent.name}
-              </div>
-              <div className="text-xs text-slate-500">{agent.role}</div>
+            <div className="callsign text-[10px] text-slate-500">
+              {agent.role}
             </div>
           </div>
-          <AgentStatusPill status={agent.status} />
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Stat icon={TrendingUp} label="成功率" value={`${agent.successRate}%`} />
-          <Stat icon={History} label="历史任务" value={`${agent.historicalTasks}`} />
+        {/* instrument cluster */}
+        <div className="mt-4 grid grid-cols-3 divide-x divide-line rounded-md border border-line bg-ink-900/40">
+          <Stat label="成功率" value={`${agent.successRate}%`} tone="text-emerald-300" />
+          <Stat label="历史任务" value={`${agent.historicalTasks}`} tone="text-slate-100" />
           <Stat
-            icon={AlertTriangle}
             label="失败数"
             value={`${agent.failureCount}`}
+            tone={agent.failureCount > 0 ? "text-rose-300" : "text-slate-100"}
           />
         </div>
 
@@ -68,9 +89,9 @@ export function AgentCard({
           ))}
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-          <span>协作：{agent.collaboration}</span>
-          <span>{agent.tokenCost}</span>
+        <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-slate-500">
+          <span>协作 · {agent.collaboration}</span>
+          <span className="tabular">{agent.tokenCost}</span>
         </div>
 
         <Button
@@ -98,19 +119,20 @@ export function AgentCard({
 }
 
 function Stat({
-  icon: Icon,
   label,
   value,
+  tone,
 }: {
-  icon: typeof TrendingUp;
   label: string;
   value: string;
+  tone: string;
 }) {
   return (
-    <div className="rounded-lg bg-ink-900/60 py-2">
-      <Icon className="mx-auto mb-1 h-3.5 w-3.5 text-slate-500" />
-      <div className="text-sm font-semibold text-slate-100">{value}</div>
-      <div className="text-[10px] text-slate-500">{label}</div>
+    <div className="px-2 py-2.5 text-center">
+      <div className={cn("font-mono text-base font-semibold tabular", tone)}>
+        {value}
+      </div>
+      <div className="callsign mt-0.5 text-[8px] text-slate-500">{label}</div>
     </div>
   );
 }

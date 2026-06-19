@@ -75,22 +75,27 @@ export function TaskBoard() {
       {/* Left column */}
       <div className="flex min-w-0 flex-col overflow-hidden">
         {/* Command Bar */}
-        <div className="border-b border-slate-800/80 px-5 py-4">
-          <div className="mb-2 flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-white">Task Board</h1>
+        <div className="border-b border-line px-5 py-4">
+          <div className="mb-2 flex items-center gap-3">
+            <div className="callsign text-[10px] text-command-soft">
+              // 02 · 执行
+            </div>
+            <h1 className="font-display text-lg font-semibold tracking-tight text-white">
+              Task Board
+            </h1>
             <Badge variant={stageBadge[stage].variant}>
               {stageBadge[stage].label}
             </Badge>
             {assignedAgentIds.length < 3 && (
-              <span className="text-xs text-amber-400/80">
+              <span className="text-xs text-human/80">
                 建议先在 Agent Board 组建至少 3 名 Agent
               </span>
             )}
           </div>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-[11px] text-slate-500">
-                任务描述
+              <label className="callsign mb-1 block text-[9px] text-slate-500">
+                任务描述 · DIRECTIVE
               </label>
               <Textarea
                 value={taskText}
@@ -125,9 +130,9 @@ export function TaskBoard() {
         </div>
 
         {/* Demo Controls */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/80 bg-ink-900/60 px-5 py-3">
-          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Demo Controls
+        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-ink-900/60 px-5 py-3">
+          <span className="callsign mr-1 text-[9px] text-slate-500">
+            ▸ DEMO CONTROLS
           </span>
 
           {showExecuteControls && (
