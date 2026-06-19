@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   FileCode2,
   Gavel,
+  Link2,
+  ShieldAlert,
 } from "lucide-react";
 import { useDemoStore } from "@/store/useDemoStore";
 import {
@@ -17,11 +19,14 @@ import {
   councilOptions,
   recommendedReason,
   getCouncilOption,
+  evidenceRefs,
+  riskSignals,
+  verdictDefs,
 } from "@/data/councilOptions";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
-import type { DiscussionMessage } from "@/types";
+import type { CouncilVerdict, DiscussionMessage } from "@/types";
 
 const accentColor: Record<DiscussionMessage["accent"], string> = {
   backend: "border-l-cyan-500/60 bg-cyan-500/5",
@@ -38,21 +43,29 @@ export function CouncilBoard() {
   const [selectedId, setSelectedId] = useState(
     councilOptions.find((o) => o.recommended)?.id ?? councilOptions[0].id
   );
+  const [verdict, setVerdict] = useState<CouncilVerdict>("select");
   const selectedOption = getCouncilOption(selectedId)!;
+  const verdictDef = verdictDefs.find((v) => v.id === verdict)!;
+  // 仅 verdict=select 驱动主链路继续（select + delegated → MergeAuthorization）
+  const canAdvance = verdict === "select";
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-line px-6 py-4">
         <div className="callsign mb-1 text-[10px] text-violet-300">
-          // 03 · 裁决
+          // 03 · 裁决 · N14
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Scale className="h-5 w-5 text-violet-400" />
           <h1 className="font-display text-lg font-semibold tracking-tight text-white">
             Council Board
           </h1>
-          <Badge variant="violet">需要用户裁决</Badge>
+          <Badge variant="violet">pending_council · 等待裁决</Badge>
+          <span className="font-mono text-[10px] text-slate-500">
+            council_id={councilContext.councilId} · decision_mode=
+            {councilContext.decisionMode}
+          </span>
         </div>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {councilContext.description}
@@ -175,58 +188,143 @@ export function CouncilBoard() {
           </div>
         </div>
 
-        {/* Right: Human Decision Panel */}
+        {/* Right: CouncilDecision composer */}
         <div className="flex min-h-0 flex-col border-l border-slate-800/80 bg-ink-900/40">
-          <PanelTitle icon={Gavel}>Human Decision</PanelTitle>
+          <PanelTitle icon={Gavel}>Human Decision · CouncilDecision</PanelTitle>
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            {/* verdict selector */}
             <div>
-              <div className="text-[11px] text-slate-500">当前选中方案</div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-base font-semibold text-white">
-                  {selectedOption.title}
-                </span>
-                {selectedOption.recommended && (
-                  <Badge variant="violet">
-                    <Star className="h-3 w-3" /> 推荐
-                  </Badge>
-                )}
+              <div className="callsign mb-1.5 text-[9px] text-slate-500">
+                verdict · 裁决类型
+              </div>
+              <div className="space-y-1.5">
+                {verdictDefs.map((v) => {
+                  const active = verdict === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => setVerdict(v.id)}
+                      disabled={!!confirmedId}
+                      className={cn(
+                        "w-full rounded-md border p-2.5 text-left transition-all disabled:opacity-60",
+                        active
+                          ? "border-violet-500/60 bg-violet-600/10 ring-1 ring-violet-500/40"
+                          : "border-line bg-ink-850/60 hover:border-line-bright"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={cn(
+                            "font-mono text-[11px] font-semibold",
+                            active ? "text-violet-200" : "text-slate-300"
+                          )}
+                        >
+                          {v.label}
+                        </span>
+                        <span className="font-mono text-[9px] text-slate-500">
+                          {v.landing}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                        {v.desc}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
-              <div className="text-[11px] font-semibold text-violet-300">
-                推荐理由
+            {/* selected_proposal_id — only meaningful for verdict=select */}
+            {verdict === "select" && (
+              <div>
+                <div className="callsign mb-1 text-[9px] text-slate-500">
+                  selected_proposal_id
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-violet-500/20 bg-violet-500/5 p-2.5">
+                  <span className="font-mono text-[11px] text-violet-200">
+                    {selectedOption.id}
+                  </span>
+                  <span className="text-xs text-slate-300">
+                    {selectedOption.title}
+                  </span>
+                  {selectedOption.recommended && (
+                    <Badge variant="violet" className="ml-auto">
+                      <Star className="h-3 w-3" /> 推荐
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                  {selectedOption.recommended
+                    ? recommendedReason
+                    : "该方案非系统推荐，确认前请评估其风险与维护成本。"}
+                </p>
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-slate-300">
-                {selectedOption.recommended
-                  ? recommendedReason
-                  : "该方案非系统推荐，确认前请评估其风险与维护成本。"}
-              </p>
+            )}
+
+            {/* evidence_refs */}
+            <div>
+              <div className="callsign mb-1.5 flex items-center gap-1 text-[9px] text-cyan-300">
+                <Link2 className="h-3 w-3" /> evidence_refs · {evidenceRefs.length}
+              </div>
+              <div className="space-y-1">
+                {evidenceRefs.map((ref) => (
+                  <div
+                    key={ref}
+                    className="truncate rounded border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 font-mono text-[10px] text-cyan-200"
+                  >
+                    {ref}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* risk_signals */}
+            <div>
+              <div className="callsign mb-1.5 flex items-center gap-1 text-[9px] text-rose-300">
+                <ShieldAlert className="h-3 w-3" /> risk_signals · {riskSignals.length}
+              </div>
+              <ul className="space-y-1">
+                {riskSignals.map((r) => (
+                  <li
+                    key={r}
+                    className="flex gap-1.5 text-[10px] leading-snug text-rose-100/80"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-rose-400" />
+                    {r}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {confirmedId && (
               <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-600/10 p-3 text-xs text-emerald-200">
                 <CheckCircle2 className="h-4 w-4" />
-                已确认 {getCouncilOption(confirmedId)?.title}，任务流已继续。
+                verdict=select · 已采纳 {getCouncilOption(confirmedId)?.title}，
+                生成 MergeAuthorization，任务流已继续。
               </div>
             )}
           </div>
 
           <div className="space-y-2 border-t border-line p-4">
             <div className="callsign mb-1 text-[9px] text-human/80">
-              ▸ 最终裁决权属于你
+              ▸ 最终裁决权属于你 · 落点 {verdictDef.landing}
             </div>
-            <Button
-              variant="warning"
-              className="w-full"
-              disabled={!!confirmedId}
-              onClick={() => confirmCouncilOption(selectedId)}
-            >
-              <Gavel className="h-4 w-4" />
-              {selectedId === "option-a"
-                ? "Confirm Option A"
-                : `Confirm ${selectedOption.title.split(" · ")[0]}`}
-            </Button>
+            {canAdvance ? (
+              <Button
+                variant="warning"
+                className="w-full"
+                disabled={!!confirmedId}
+                onClick={() => confirmCouncilOption(selectedId)}
+              >
+                <Gavel className="h-4 w-4" />
+                提交 select · 采纳 {selectedOption.id}
+              </Button>
+            ) : (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-200/90">
+                该裁决会使任务进入 <span className="font-mono">{verdictDef.landing}</span>
+                ，演示主链路在此暂停（仅 select 会继续到 N15 合并授权）。
+              </div>
+            )}
             <Button
               variant="outline"
               className="w-full"

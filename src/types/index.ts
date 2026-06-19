@@ -29,6 +29,27 @@ export type DemoStage =
 
 export type AgentStatus = "idle" | "working" | "waiting" | "reviewing" | "done";
 
+/** N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease） */
+export type FileLease = {
+  lease_id: string;
+  path_glob: string;
+  scope: "read" | "write";
+  expires_at: string;
+  status: string;
+};
+
+/** N4 AgentRecord + N6 Driver Session 的运行态身份（字段清单 N4.agent / N6） */
+export type AgentRuntime = {
+  agent_id: string;
+  role_id: string;
+  driver_id: string;
+  /** Driver 展示名（字段清单外，便于人读） */
+  driver_name: string;
+  session_id?: string;
+  worktree_id?: string;
+  last_heartbeat?: string;
+};
+
 export type Agent = {
   id: string;
   name: string;
@@ -44,6 +65,12 @@ export type Agent = {
   collaboration: "优秀" | "良好" | "一般";
   recentTask: string;
   description: string;
+  /** N4/N6 运行态身份 */
+  runtime: AgentRuntime;
+  /** N5 ContextPack.capability_tags */
+  capabilityTags: string[];
+  /** 当前持有的文件租约（未认领时为空） */
+  fileLease?: FileLease;
 };
 
 export type WorkflowNodeStatus =
@@ -53,20 +80,80 @@ export type WorkflowNodeStatus =
   | "blocked"
   | "updated";
 
-export type Lane = "User" | "System" | "Backend" | "Test" | "Security" | "Council";
+/** 泳道 = 责任方分区（与协作链路 A/B/C/D 对齐） */
+export type Lane =
+  | "User"
+  | "Coord"
+  | "Context"
+  | "Driver"
+  | "Gate"
+  | "Council"
+  | "Merge";
+
+/** 协调器 Task 主状态机的 11 个核心态（见 需求到处理状态机 §3） */
+export type TaskStatusCore =
+  | "created"
+  | "claimed"
+  | "running"
+  | "waiting_input"
+  | "pending_gate"
+  | "pending_council"
+  | "reviewing"
+  | "blocked"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+/** Gate 四种决策（见 字段清单 N13） */
+export type GateDecision = "allow" | "deny" | "ask" | "defer";
+
+/** 节点责任方：A=Driver执行 B=角色记忆 C=主链路编排 D=Hook/Gate */
+export type NodeDirection = "User" | "A" | "B" | "C" | "D" | "Merger";
+
+/** 冻结度：frozen=可直接对接 partial=部分待定 tbd=尚未冻结 reserved=后置 */
+export type FrozenLevel = "frozen" | "partial" | "tbd" | "reserved";
+
+/** 字段清单中的一条字段（key + 中文释义/类型说明） */
+export type FieldSpec = { key: string; desc: string };
 
 export type WorkflowNodeData = {
   id: string;
+  /** 流程图节点编号，如 N0 / N13 */
+  code: string;
   label: string;
+  /** 节点中文名 */
+  labelCn: string;
   lane: Lane;
+  /** 责任方 A/B/C/D/User/Merger */
+  direction: NodeDirection;
   owner: string;
   status: WorkflowNodeStatus;
+  /** 该节点对应的协调器主状态（N0/N1/N16/N17 无核心态时为 null） */
+  taskStatus: TaskStatusCore | null;
+  /** 状态补充说明（如 N13 的分支落点、N17 的 reserved 提示） */
+  statusNote?: string;
+  frozen: FrozenLevel;
   summary: string;
   input: string[];
   output: string[];
+  /** 字段清单中该节点 decided（已定）字段 */
+  decided: FieldSpec[];
+  /** 字段清单中该节点 tbd（待定）字段 */
+  tbd: FieldSpec[];
+  /** 该节点 emit 的标准事件类型 */
+  events: string[];
+  /** 仅 N13 Gate：本次 demo 走的决策分支 */
+  gateDecision?: GateDecision;
   risk: string;
   nextAction: string;
 };
+
+/** N14 CouncilDecision.verdict（字段清单 N14） */
+export type CouncilVerdict =
+  | "select"
+  | "needs_human"
+  | "request_revision"
+  | "reject";
 
 export type CouncilOption = {
   id: string;

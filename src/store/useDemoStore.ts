@@ -15,9 +15,14 @@ import {
   nodeLogs,
 } from "@/data/logs";
 import { DEFAULT_TASK_ID, initialTasks } from "@/data/tasks";
+import { NODE_IDS } from "@/data/workflow";
 import { captureSnapshot, nextTimelineId, resetTimelineSeq } from "@/lib/snapshot";
 
-const DOWNSTREAM_UPDATED_IDS = ["gate-check", "security-review", "complete"];
+const DOWNSTREAM_UPDATED_IDS = [
+  NODE_IDS.gate,
+  "n15-merge-auth",
+  NODE_IDS.complete,
+];
 
 type PartialExecState = {
   stage: DemoStage;
@@ -293,7 +298,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     if (cur < 0) return;
     const node = state.nodes[cur];
 
-    if (node.id === "council" && !state.confirmedCouncilOptionId) {
+    if (node.id === NODE_IDS.council && !state.confirmedCouncilOptionId) {
       get().goToCouncil();
       return;
     }
@@ -329,7 +334,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
     let stage: DemoStage = "executing";
     let currentPage = state.currentPage;
-    if (nextNode.id === "council") {
+    if (nextNode.id === NODE_IDS.council) {
       stage = "council";
       currentPage = "council";
       get().stopAutoRun();
@@ -469,7 +474,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   goToCouncil: () => {
     const state = get();
-    const councilIdx = state.nodes.findIndex((n) => n.id === "council");
+    const councilIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.council);
     if (councilIdx < 0) return;
     const nodes = state.nodes.map((n, i) => {
       if (i < councilIdx) {
@@ -478,7 +483,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       if (i === councilIdx) return { ...n, status: "active" as const };
       return n;
     });
-    const nodeLog = nodeLogs["council"];
+    const nodeLog = nodeLogs[NODE_IDS.council];
     const alreadyHasCouncil = state.timeline.some(
       (e) => e.source === "Council" && e.text.includes("已就绪")
     );
@@ -487,7 +492,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       currentPage: "council",
       nodes,
       activeStepIndex: councilIdx,
-      selectedNodeId: "council",
+      selectedNodeId: NODE_IDS.council,
       revealedNodeCount: Math.max(state.revealedNodeCount, councilIdx + 1),
       interventionRules: state.interventionRules,
       confirmedCouncilOptionId: state.confirmedCouncilOptionId,
@@ -515,7 +520,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   confirmCouncilOption: (optionId) => {
     const state = get();
-    const councilIdx = state.nodes.findIndex((n) => n.id === "council");
+    const councilIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.council);
     const completeIdx = state.nodes.length - 1;
     const nodes = state.nodes.map((n, i) => {
       if (i === councilIdx) return { ...n, status: "done" as const };
@@ -557,7 +562,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       const nodes = state.nodes.map((n, i) =>
         i === completeIdx ? { ...n, status: "done" as const } : n
       );
-      const nodeLog = nodeLogs["complete"];
+      const nodeLog = nodeLogs[NODE_IDS.complete];
       const alreadyHasComplete = state.timeline.some(
         (e) => e.source === "Orchestrator" && e.text.includes("Delivery Report")
       );

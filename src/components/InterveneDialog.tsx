@@ -66,10 +66,10 @@ export function InterveneDialog({
               HUMAN OVERRIDE
             </div>
             <h2 className="font-display text-base font-semibold text-white">
-              Intervene in Coding Agent
+              Intervene · N7 Executing
             </h2>
             <p className="text-xs text-slate-500">
-              将补充信息结构化注入到当前 Agent Workflow
+              将补充信息结构化注入到执行中的 Driver / Agent
             </p>
           </div>
         </div>

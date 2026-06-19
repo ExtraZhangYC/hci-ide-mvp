@@ -67,9 +67,9 @@ export function TaskBoard() {
   const showRecommend =
     stage === "analyzing" || stage === "workflow_recommended";
   const showExecuteControls = stage === "executing";
-  const showIntervene = activeNode?.id === "work";
+  const showIntervene = activeNode?.id === "n7-executing";
   const showCouncil =
-    activeNode?.id === "human-gate" || activeNode?.id === "council";
+    activeNode?.id === "n13-gate" || activeNode?.id === "n14-council";
   const showDelivered = stage === "delivery";
 
   const hasWorkflow = stage !== "idle" && stage !== "team_configured" && stage !== "analyzing";
@@ -227,7 +227,7 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
           : "输入任务并点击 “Start Task” 开始"}
       </div>
       <div className="text-xs text-slate-600">
-        执行过程中将动态生成 6 条 Lane 上的节点，最多 10 个步骤
+        执行过程将沿 7 条责任方 Lane 动态生成 N0–N18 全链路节点
       </div>
     </div>
   );
