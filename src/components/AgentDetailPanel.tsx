@@ -8,9 +8,10 @@ type Props = {
   agent: Agent | null;
   assigned: boolean;
   onAssign: () => void;
+  showAssign?: boolean;
 };
 
-export function AgentDetailPanel({ agent, assigned, onAssign }: Props) {
+export function AgentDetailPanel({ agent, assigned, onAssign, showAssign = true }: Props) {
   if (!agent) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center text-slate-500">
@@ -89,23 +90,25 @@ export function AgentDetailPanel({ agent, assigned, onAssign }: Props) {
         </section>
       </div>
 
-      <div className="border-t border-slate-800/80 p-4">
-        <Button
-          variant={assigned ? "success" : "primary"}
-          className="w-full"
-          onClick={onAssign}
-        >
-          {assigned ? (
-            <>
-              <Check className="h-4 w-4" /> 已加入项目团队
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" /> Assign to Project
-            </>
-          )}
-        </Button>
-      </div>
+      {showAssign && (
+        <div className="border-t border-slate-800/80 p-4">
+          <Button
+            variant={assigned ? "success" : "primary"}
+            className="w-full"
+            onClick={onAssign}
+          >
+            {assigned ? (
+              <>
+                <Check className="h-4 w-4" /> 已加入项目团队
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Assign to Project
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,9 @@ export function AgentBoard() {
   const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
   const selectAgent = useDemoStore((s) => s.selectAgent);
   const assignAgent = useDemoStore((s) => s.assignAgent);
+  const teamCustomizationEnabled = useDemoStore((s) => s.teamCustomizationEnabled);
+  const enableTeamCustomization = useDemoStore((s) => s.enableTeamCustomization);
+  const resetTeamToRecommended = useDemoStore((s) => s.resetTeamToRecommended);
   const setPage = useDemoStore((s) => s.setPage);
 
   const selectedAgent = selectedAgentId
@@ -34,7 +37,18 @@ export function AgentBoard() {
               Persistent AI employees for project delivery · 组建你的 AI 工程团队
             </p>
           </div>
-          <TeamSummary count={assignedAgentIds.length} ready={teamReady} />
+          <div className="flex items-center gap-3">
+            <TeamSummary count={assignedAgentIds.length} ready={teamReady} />
+            {teamCustomizationEnabled ? (
+              <Button variant="secondary" size="sm" onClick={resetTeamToRecommended}>
+                恢复推荐团队
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={enableTeamCustomization}>
+                自定义团队
+              </Button>
+            )}
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -47,6 +61,7 @@ export function AgentBoard() {
                 assigned={assignedAgentIds.includes(agent.id)}
                 onSelect={() => selectAgent(agent.id)}
                 onAssign={() => assignAgent(agent.id)}
+                showAssign={teamCustomizationEnabled}
               />
             ))}
           </div>
@@ -59,13 +74,13 @@ export function AgentBoard() {
                 Project Team Summary
               </h2>
               <span className="ml-2 text-xs text-slate-500">
-                至少加入 3 名 Agent 即可开始任务
+                系统已默认推荐团队（可点击右上角“自定义团队”调整）
               </span>
             </div>
 
             {assignedAgentIds.length === 0 ? (
               <p className="text-sm text-slate-500">
-                尚未加入任何 Agent。点击卡片上的 “Assign to Project” 组建团队。
+                当前团队为空。建议保持至少 3 名 Agent。
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -108,6 +123,7 @@ export function AgentBoard() {
             selectedAgent ? assignedAgentIds.includes(selectedAgent.id) : false
           }
           onAssign={() => selectedAgent && assignAgent(selectedAgent.id)}
+          showAssign={teamCustomizationEnabled}
         />
       </aside>
     </div>

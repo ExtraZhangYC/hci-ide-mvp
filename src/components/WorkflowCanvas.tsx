@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -6,6 +6,8 @@ import {
   Controls,
   Handle,
   Position,
+  useReactFlow,
+  ReactFlowProvider,
   type Node,
   type Edge,
   type NodeProps,
@@ -24,9 +26,10 @@ const X_OFFSET = 170;
 const laneAccent: Record<string, string> = {
   User: "border-l-human/70", // the human's own lane glows warm
   System: "border-l-slate-500/60",
+  // Agent 泳道：统一使用同一种头色，避免把注意力分散到子角色上
   Backend: "border-l-cyan-500/60",
-  Test: "border-l-emerald-500/60",
-  Security: "border-l-rose-500/60",
+  Test: "border-l-cyan-500/60",
+  Security: "border-l-cyan-500/60",
   Council: "border-l-violet-500/60",
 };
 
@@ -64,17 +67,19 @@ const statusStyles: Record<
 type StepNodeData = {
   wf: WorkflowNodeData;
   selected: boolean;
+  isNew?: boolean;
 };
 
 function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
-  const { wf, selected } = data;
+  const { wf, selected, isNew } = data;
   const s = statusStyles[wf.status];
   return (
     <div
       className={cn(
         "w-[178px] rounded-md border px-3 py-2.5 transition-all cursor-pointer",
         s.box,
-        selected && "ring-2 ring-white/40"
+        selected && "ring-2 ring-white/40",
+        isNew && "animate-fade-in"
       )}
     >
       <Handle type="target" position={Position.Left} className="!opacity-0" />
@@ -115,12 +120,24 @@ const nodeTypes = {
   lane: LaneNode,
 };
 
-export function WorkflowCanvas() {
-  const wfNodes = useDemoStore((s) => s.nodes);
+function WorkflowCanvasInner() {
+  const allNodes = useDemoStore((s) => s.nodes);
+  const revealedNodeCount = useDemoStore((s) => s.revealedNodeCount);
   const selectedNodeId = useDemoStore((s) => s.selectedNodeId);
   const selectNode = useDemoStore((s) => s.selectNode);
+  const { fitView } = useReactFlow();
 
-  const totalWidth = X_OFFSET + wfNodes.length * COL_GAP;
+  const wfNodes = useMemo(
+    () => allNodes.slice(0, revealedNodeCount),
+    [allNodes, revealedNodeCount]
+  );
+
+  const totalWidth = X_OFFSET + Math.max(wfNodes.length, 1) * COL_GAP;
+
+  useEffect(() => {
+    const t = setTimeout(() => fitView({ padding: 0.15, maxZoom: 1, duration: 300 }), 50);
+    return () => clearTimeout(t);
+  }, [revealedNodeCount, fitView]);
 
   const { nodes, edges } = useMemo(() => {
     const laneIndex = (lane: string) => lanes.indexOf(lane as never);
@@ -143,7 +160,11 @@ export function WorkflowCanvas() {
         x: X_OFFSET + i * COL_GAP,
         y: laneIndex(wf.lane) * LANE_HEIGHT + 26,
       },
-      data: { wf, selected: selectedNodeId === wf.id },
+      data: {
+        wf,
+        selected: selectedNodeId === wf.id,
+        isNew: i === wfNodes.length - 1,
+      },
       draggable: false,
       zIndex: 5,
       style: { zIndex: 5, width: NODE_W },
@@ -200,5 +221,13 @@ export function WorkflowCanvas() {
         />
       </ReactFlow>
     </div>
+  );
+}
+
+export function WorkflowCanvas() {
+  return (
+    <ReactFlowProvider>
+      <WorkflowCanvasInner />
+    </ReactFlowProvider>
   );
 }

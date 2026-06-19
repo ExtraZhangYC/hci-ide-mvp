@@ -5,10 +5,10 @@ import {
   ArrowRight,
   MousePointerSquareDashed,
   ShieldCheck,
-  ScrollText,
 } from "lucide-react";
 import { useDemoStore } from "@/store/useDemoStore";
 import { NodeStatusPill } from "@/components/StatusPill";
+import { NodeExecutionLog } from "@/components/NodeExecutionLog";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import type { InterventionScope } from "@/types";
@@ -20,19 +20,11 @@ const scopeLabels: Record<InterventionScope, string> = {
   project_rule: "项目长期规则",
 };
 
-const logLevelColor: Record<string, string> = {
-  info: "text-slate-400",
-  success: "text-emerald-300",
-  warning: "text-amber-300",
-  council: "text-violet-300",
-};
-
 export function NodeInspector() {
   const nodes = useDemoStore((s) => s.nodes);
   const selectedNodeId = useDemoStore((s) => s.selectedNodeId);
   const rules = useDemoStore((s) => s.interventionRules);
   const feedback = useDemoStore((s) => s.interventionFeedback);
-  const logs = useDemoStore((s) => s.logs);
 
   const node = nodes.find((n) => n.id === selectedNodeId) ?? null;
 
@@ -103,6 +95,8 @@ export function NodeInspector() {
               </div>
               <p className="mt-1 text-xs text-slate-300">{node.nextAction}</p>
             </div>
+
+            <NodeExecutionLog nodeId={node.id} status={node.status} />
           </div>
         )}
       </div>
@@ -129,27 +123,6 @@ export function NodeInspector() {
                     </Badge>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Event log */}
-      {logs.length > 0 && (
-        <div className="border-t border-line p-4">
-          <div className="callsign mb-2 flex items-center gap-2 text-[10px] text-slate-500">
-            <ScrollText className="h-3.5 w-3.5" />
-            执行日志 · EVENT LOG
-          </div>
-          <div className="space-y-1.5">
-            {logs.map((l, i) => (
-              <div key={i} className="flex gap-2 text-[11px]">
-                <span className="shrink-0 font-mono text-slate-600">
-                  {l.time}
-                </span>
-                <span className="shrink-0 text-slate-500">{l.source}</span>
-                <span className={cn(logLevelColor[l.level])}>{l.text}</span>
               </div>
             ))}
           </div>
