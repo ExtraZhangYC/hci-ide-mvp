@@ -1,5 +1,22 @@
 export type PageKey = "agents" | "tasks" | "council";
 
+/** 单个任务及其泳道图执行状态 */
+export type DemoTask = {
+  id: string;
+  title: string;
+  taskText: string;
+  stage: DemoStage;
+  analysisReady: boolean;
+  nodes: WorkflowNodeData[];
+  revealedNodeCount: number;
+  activeStepIndex: number;
+  selectedNodeId: string | null;
+  interventionRules: InterventionRule[];
+  confirmedCouncilOptionId: string | null;
+  interventionFeedback: string | null;
+  timeline: TimelineEvent[];
+};
+
 export type DemoStage =
   | "idle"
   | "team_configured"
@@ -80,4 +97,54 @@ export type DiscussionMessage = {
   role: string;
   message: string;
   accent: "backend" | "test" | "security" | "system";
+};
+
+export type LogLevel = "info" | "success" | "warning" | "council";
+
+export type LogEntry = {
+  time: string;
+  source: string;
+  text: string;
+  level: LogLevel;
+};
+
+export type TimelineCheckpoint = {
+  label: string;
+  description: string;
+};
+
+/** 可回溯的 Demo 执行快照 */
+export type DemoSnapshot = {
+  stage: DemoStage;
+  currentPage: PageKey;
+  nodes: WorkflowNodeData[];
+  revealedNodeCount: number;
+  activeStepIndex: number;
+  selectedNodeId: string | null;
+  interventionRules: InterventionRule[];
+  confirmedCouncilOptionId: string | null;
+  interventionFeedback: string | null;
+};
+
+export type TimelineEvent = LogEntry & {
+  id: string;
+  checkpoint?: TimelineCheckpoint;
+  snapshot: DemoSnapshot;
+};
+
+export type NodeExecLogLevel = LogLevel | "debug";
+
+/** 单条节点内部执行日志 */
+export type NodeExecLogLine = {
+  time: string;
+  tag: string;
+  message: string;
+  level: NodeExecLogLevel;
+};
+
+/** 某节点的完整执行日志（mock） */
+export type NodeExecutionLogDetail = {
+  duration?: string;
+  tokenUsage?: string;
+  lines: NodeExecLogLine[];
 };

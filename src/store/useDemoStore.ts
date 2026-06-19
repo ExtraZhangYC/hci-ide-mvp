@@ -1,70 +1,160 @@
 import { create } from "zustand";
 import type {
   DemoStage,
+  DemoTask,
   InterventionRule,
+  LogEntry,
   PageKey,
+  TimelineCheckpoint,
+  TimelineEvent,
   WorkflowNodeData,
 } from "@/types";
 import {
-  workflowNodes as initialWorkflowNodes,
-} from "@/data/workflow";
-import { nodeLogs, type LogEntry } from "@/data/logs";
-import { DEFAULT_TASK_TEXT } from "@/data/deliveryReport";
-
-const cloneNodes = (): WorkflowNodeData[] =>
-  initialWorkflowNodes.map((n) => ({ ...n, input: [...n.input], output: [...n.output] }));
+  councilConfirmCheckpoint,
+  interventionCheckpoint,
+  nodeLogs,
+} from "@/data/logs";
+import { DEFAULT_TASK_ID, initialTasks } from "@/data/tasks";
+import { captureSnapshot, nextTimelineId, resetTimelineSeq } from "@/lib/snapshot";
 
 const DOWNSTREAM_UPDATED_IDS = ["gate-check", "security-review", "complete"];
 
-type DemoState = {
-  currentPage: PageKey;
+type PartialExecState = {
   stage: DemoStage;
-  selectedAgentId: string | null;
-  assignedAgentIds: string[];
-  selectedNodeId: string | null;
+  currentPage: PageKey;
+  nodes: WorkflowNodeData[];
+  revealedNodeCount: number;
   activeStepIndex: number;
+  selectedNodeId: string | null;
   interventionRules: InterventionRule[];
   confirmedCouncilOptionId: string | null;
-
-  nodes: WorkflowNodeData[];
-  taskText: string;
-  analysisReady: boolean;
   interventionFeedback: string | null;
-  isAutoRunning: boolean;
-  logs: LogEntry[];
-
-  setPage: (page: PageKey) => void;
-  selectAgent: (agentId: string) => void;
-  assignAgent: (agentId: string) => void;
-  setTaskText: (text: string) => void;
-  startTask: () => void;
-  useRecommendedWorkflow: () => void;
-  nextStep: () => void;
-  autoRun: () => void;
-  stopAutoRun: () => void;
-  resetDemo: () => void;
-  selectNode: (nodeId: string) => void;
-  addInterventionRule: (rule: InterventionRule) => void;
-  goToCouncil: () => void;
-  confirmCouncilOption: (optionId: string) => void;
-  showDelivery: () => void;
 };
+
+type TaskFields = Pick<
+  DemoTask,
+  | "taskText"
+  | "stage"
+  | "analysisReady"
+  | "nodes"
+  | "revealedNodeCount"
+  | "activeStepIndex"
+  | "selectedNodeId"
+  | "interventionRules"
+  | "confirmedCouncilOptionId"
+  | "interventionFeedback"
+  | "timeline"
+>;
+
+function cloneTask(task: DemoTask): DemoTask {
+  return {
+    ...task,
+    nodes: task.nodes.map((n) => ({
+      ...n,
+      input: [...n.input],
+      output: [...n.output],
+    })),
+    interventionRules: task.interventionRules.map((r) => ({
+      ...r,
+      affectedAgents: [...r.affectedAgents],
+    })),
+    timeline: [...task.timeline],
+  };
+}
+
+function extractTaskFields(state: TaskFields): TaskFields {
+  return {
+    taskText: state.taskText,
+    stage: state.stage,
+    analysisReady: state.analysisReady,
+    nodes: state.nodes,
+    revealedNodeCount: state.revealedNodeCount,
+    activeStepIndex: state.activeStepIndex,
+    selectedNodeId: state.selectedNodeId,
+    interventionRules: state.interventionRules,
+    confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+    interventionFeedback: state.interventionFeedback,
+    timeline: state.timeline,
+  };
+}
+
+function syncTasks(
+  tasks: DemoTask[],
+  activeTaskId: string,
+  fields: TaskFields
+): DemoTask[] {
+  return tasks.map((t) =>
+    t.id === activeTaskId ? { ...t, ...fields } : t
+  );
+}
+
+function taskToState(task: DemoTask): TaskFields {
+  return cloneTask(task);
+}
+
+function buildTimelineEvent(
+  entry: LogEntry,
+  exec: PartialExecState,
+  checkpoint?: TimelineCheckpoint
+): TimelineEvent {
+  return {
+    id: nextTimelineId(),
+    ...entry,
+    checkpoint,
+    snapshot: captureSnapshot(exec),
+  };
+}
+
+type DemoState = PartialExecState &
+  TaskFields & {
+    selectedAgentId: string | null;
+    assignedAgentIds: string[];
+    teamCustomizationEnabled: boolean;
+    isAutoRunning: boolean;
+    tasks: DemoTask[];
+    activeTaskId: string;
+
+    setPage: (page: PageKey) => void;
+    selectTask: (taskId: string) => void;
+    selectAgent: (agentId: string) => void;
+    assignAgent: (agentId: string) => void;
+    enableTeamCustomization: () => void;
+    disableTeamCustomization: () => void;
+    resetTeamToRecommended: () => void;
+    setTaskText: (text: string) => void;
+    startTask: () => void;
+    useRecommendedWorkflow: () => void;
+    nextStep: () => void;
+    autoRun: () => void;
+    stopAutoRun: () => void;
+    resetDemo: () => void;
+    selectNode: (nodeId: string) => void;
+    addInterventionRule: (rule: InterventionRule) => void;
+    goToCouncil: () => void;
+    confirmCouncilOption: (optionId: string) => void;
+    showDelivery: () => void;
+    restoreCheckpoint: (eventId: string) => void;
+  };
+
+const defaultTask = initialTasks.find((t) => t.id === DEFAULT_TASK_ID)!;
+const defaultTaskState = taskToState(defaultTask);
+
+const RECOMMENDED_AGENT_IDS = [
+  "backend-a",
+  "test-agent",
+  "security-agent",
+  "frontend-b",
+] as const;
 
 const initialState = {
   currentPage: "agents" as PageKey,
-  stage: "idle" as DemoStage,
   selectedAgentId: null as string | null,
-  assignedAgentIds: [] as string[],
-  selectedNodeId: null as string | null,
-  activeStepIndex: -1,
-  interventionRules: [] as InterventionRule[],
-  confirmedCouncilOptionId: null as string | null,
-  nodes: cloneNodes(),
-  taskText: DEFAULT_TASK_TEXT,
-  analysisReady: false,
-  interventionFeedback: null as string | null,
+  assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
+  teamCustomizationEnabled: false,
   isAutoRunning: false,
-  logs: [] as LogEntry[],
+  tasks: initialTasks.map(cloneTask),
+  activeTaskId: DEFAULT_TASK_ID,
+  ...defaultTaskState,
 };
 
 let autoRunTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,6 +163,46 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   ...initialState,
 
   setPage: (page) => set({ currentPage: page }),
+
+  enableTeamCustomization: () => set({ teamCustomizationEnabled: true }),
+  disableTeamCustomization: () => set({ teamCustomizationEnabled: false }),
+  resetTeamToRecommended: () =>
+    set((state) => {
+      let stage = state.stage;
+      if (stage === "idle" || stage === "team_configured") {
+        stage = RECOMMENDED_AGENT_IDS.length >= 3 ? "team_configured" : "idle";
+      }
+      const patch = {
+        assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
+        teamCustomizationEnabled: false,
+        stage,
+      };
+      const taskFields = extractTaskFields({ ...state, ...patch });
+      return {
+        ...patch,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
+    }),
+
+  selectTask: (taskId) => {
+    const state = get();
+    if (taskId === state.activeTaskId) {
+      set({ currentPage: "tasks" });
+      return;
+    }
+    get().stopAutoRun();
+    const taskFields = extractTaskFields(state);
+    const tasks = syncTasks(state.tasks, state.activeTaskId, taskFields);
+    const next = tasks.find((t) => t.id === taskId);
+    if (!next) return;
+    set({
+      tasks,
+      activeTaskId: taskId,
+      currentPage: "tasks",
+      ...taskToState(next),
+      isAutoRunning: false,
+    });
+  },
 
   selectAgent: (agentId) => set({ selectedAgentId: agentId }),
 
@@ -86,16 +216,36 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       if (state.stage === "idle" || state.stage === "team_configured") {
         stage = assignedAgentIds.length >= 3 ? "team_configured" : "idle";
       }
-      return { assignedAgentIds, stage };
+      const taskFields = extractTaskFields({ ...state, stage });
+      return {
+        assignedAgentIds,
+        stage,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
     }),
 
-  setTaskText: (text) => set({ taskText: text }),
+  setTaskText: (text) =>
+    set((state) => {
+      const taskFields = extractTaskFields({ ...state, taskText: text });
+      return {
+        taskText: text,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
+    }),
 
   startTask: () =>
-    set({
-      currentPage: "tasks",
-      stage: "analyzing",
-      analysisReady: true,
+    set((state) => {
+      const taskFields = extractTaskFields({
+        ...state,
+        stage: "analyzing",
+        analysisReady: true,
+      });
+      return {
+        currentPage: "tasks",
+        stage: "analyzing",
+        analysisReady: true,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
     }),
 
   useRecommendedWorkflow: () =>
@@ -103,13 +253,36 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       const nodes = state.nodes.map((n, i) =>
         i === 0 ? { ...n, status: "active" as const } : n
       );
-      const firstLog = nodeLogs[nodes[0].id];
-      return {
+      const nodeLog = nodeLogs[nodes[0].id];
+      const exec: PartialExecState = {
         stage: "executing",
+        currentPage: state.currentPage,
+        nodes,
+        revealedNodeCount: 1,
         activeStepIndex: 0,
         selectedNodeId: nodes[0].id,
-        nodes,
-        logs: firstLog ? [firstLog] : [],
+        interventionRules: state.interventionRules,
+        confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+        interventionFeedback: state.interventionFeedback,
+      };
+      const { checkpoint, ...entry } = nodeLog ?? {
+        time: "00:01",
+        source: "Orchestrator",
+        text: "Workflow 已启动。",
+        level: "info" as const,
+      };
+      const timeline = nodeLog
+        ? [buildTimelineEvent(entry, exec, checkpoint)]
+        : [];
+      const taskFields = extractTaskFields({
+        ...state,
+        ...exec,
+        timeline,
+      });
+      return {
+        ...exec,
+        timeline,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
       };
     }),
 
@@ -120,7 +293,6 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     if (cur < 0) return;
     const node = state.nodes[cur];
 
-    // Council 节点需要先裁决
     if (node.id === "council" && !state.confirmedCouncilOptionId) {
       get().goToCouncil();
       return;
@@ -129,12 +301,22 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const nodes = state.nodes.map((n) => ({ ...n }));
     nodes[cur] = { ...nodes[cur], status: "done" };
 
-    // 已是最后一个节点 (Complete)
     if (cur >= nodes.length - 1) {
-      set({
-        nodes,
+      const exec: PartialExecState = {
         stage: "delivery",
+        currentPage: state.currentPage,
+        nodes,
+        revealedNodeCount: nodes.length,
+        activeStepIndex: cur,
         selectedNodeId: nodes[cur].id,
+        interventionRules: state.interventionRules,
+        confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+        interventionFeedback: state.interventionFeedback,
+      };
+      const taskFields = extractTaskFields({ ...state, ...exec });
+      set({
+        ...exec,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
       });
       get().stopAutoRun();
       return;
@@ -143,23 +325,45 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const nextIndex = cur + 1;
     nodes[nextIndex] = { ...nodes[nextIndex], status: "active" };
     const nextNode = nodes[nextIndex];
-    const log = nodeLogs[nextNode.id];
+    const nodeLog = nodeLogs[nextNode.id];
 
-    const patch: Partial<DemoState> = {
-      nodes,
-      activeStepIndex: nextIndex,
-      selectedNodeId: nextNode.id,
-      logs: log ? [...state.logs, log] : state.logs,
-    };
-
-    // 进入 Council 节点：自动切到 Council Board
+    let stage: DemoStage = "executing";
+    let currentPage = state.currentPage;
     if (nextNode.id === "council") {
-      patch.stage = "council";
-      patch.currentPage = "council";
+      stage = "council";
+      currentPage = "council";
       get().stopAutoRun();
     }
 
-    set(patch);
+    const exec: PartialExecState = {
+      stage,
+      currentPage,
+      nodes,
+      revealedNodeCount: nextIndex + 1,
+      activeStepIndex: nextIndex,
+      selectedNodeId: nextNode.id,
+      interventionRules: state.interventionRules,
+      confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+      interventionFeedback: state.interventionFeedback,
+    };
+
+    const timeline = nodeLog
+      ? [
+          ...state.timeline,
+          buildTimelineEvent(
+            { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+            exec,
+            nodeLog.checkpoint
+          ),
+        ]
+      : state.timeline;
+
+    const taskFields = extractTaskFields({ ...state, ...exec, timeline });
+    set({
+      ...exec,
+      timeline,
+      tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+    });
   },
 
   autoRun: () => {
@@ -196,10 +400,29 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       clearTimeout(autoRunTimer);
       autoRunTimer = null;
     }
-    set({ ...initialState, nodes: cloneNodes(), logs: [] });
+    resetTimelineSeq();
+    const tasks = initialTasks.map(cloneTask);
+    const task = tasks.find((t) => t.id === DEFAULT_TASK_ID)!;
+    set({
+      currentPage: "agents",
+      selectedAgentId: null,
+      assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
+      teamCustomizationEnabled: false,
+      isAutoRunning: false,
+      tasks,
+      activeTaskId: DEFAULT_TASK_ID,
+      ...taskToState(task),
+    });
   },
 
-  selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
+  selectNode: (nodeId) =>
+    set((state) => {
+      const taskFields = extractTaskFields({ ...state, selectedNodeId: nodeId });
+      return {
+        selectedNodeId: nodeId,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
+    }),
 
   addInterventionRule: (rule) =>
     set((state) => {
@@ -217,11 +440,30 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         text: `注入业务规则：${rule.text}`,
         level: "warning",
       };
-      return {
+      const exec: PartialExecState = {
+        stage: state.stage,
+        currentPage: state.currentPage,
         nodes,
+        revealedNodeCount: state.revealedNodeCount,
+        activeStepIndex: state.activeStepIndex,
+        selectedNodeId: state.selectedNodeId,
         interventionRules: [...state.interventionRules, rule],
+        confirmedCouncilOptionId: state.confirmedCouncilOptionId,
         interventionFeedback: feedback,
-        logs: [...state.logs, log],
+      };
+      const timeline = [
+        ...state.timeline,
+        buildTimelineEvent(log, exec, interventionCheckpoint),
+      ];
+      const taskFields = extractTaskFields({
+        ...state,
+        ...exec,
+        timeline,
+      });
+      return {
+        ...exec,
+        timeline,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
       };
     }),
 
@@ -236,18 +478,37 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       if (i === councilIdx) return { ...n, status: "active" as const };
       return n;
     });
-    const log = nodeLogs["council"];
-    set({
+    const nodeLog = nodeLogs["council"];
+    const alreadyHasCouncil = state.timeline.some(
+      (e) => e.source === "Council" && e.text.includes("已就绪")
+    );
+    const exec: PartialExecState = {
+      stage: "council",
+      currentPage: "council",
       nodes,
       activeStepIndex: councilIdx,
       selectedNodeId: "council",
-      stage: "council",
-      currentPage: "council",
-      logs: state.logs.some((l) => l.source === "Council")
-        ? state.logs
-        : log
-          ? [...state.logs, log]
-          : state.logs,
+      revealedNodeCount: Math.max(state.revealedNodeCount, councilIdx + 1),
+      interventionRules: state.interventionRules,
+      confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+      interventionFeedback: state.interventionFeedback,
+    };
+    const timeline =
+      alreadyHasCouncil || !nodeLog
+        ? state.timeline
+        : [
+            ...state.timeline,
+            buildTimelineEvent(
+              { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+              exec,
+              nodeLog.checkpoint
+            ),
+          ];
+    const taskFields = extractTaskFields({ ...state, ...exec, timeline });
+    set({
+      ...exec,
+      timeline,
+      tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
     });
     get().stopAutoRun();
   },
@@ -267,14 +528,26 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       text: "用户已裁决：采用 Option A · RBAC 策略，回到主流程。",
       level: "council",
     };
-    set({
-      confirmedCouncilOptionId: optionId,
+    const exec: PartialExecState = {
+      stage: "executing",
+      currentPage: "tasks",
       nodes,
       activeStepIndex: completeIdx,
       selectedNodeId: nodes[completeIdx].id,
-      stage: "executing",
-      currentPage: "tasks",
-      logs: [...state.logs, log],
+      revealedNodeCount: Math.max(state.revealedNodeCount, completeIdx + 1),
+      interventionRules: state.interventionRules,
+      confirmedCouncilOptionId: optionId,
+      interventionFeedback: state.interventionFeedback,
+    };
+    const timeline = [
+      ...state.timeline,
+      buildTimelineEvent(log, exec, councilConfirmCheckpoint),
+    ];
+    const taskFields = extractTaskFields({ ...state, ...exec, timeline });
+    set({
+      ...exec,
+      timeline,
+      tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
     });
   },
 
@@ -284,14 +557,81 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       const nodes = state.nodes.map((n, i) =>
         i === completeIdx ? { ...n, status: "done" as const } : n
       );
-      const log = nodeLogs["complete"];
-      return {
-        nodes,
+      const nodeLog = nodeLogs["complete"];
+      const alreadyHasComplete = state.timeline.some(
+        (e) => e.source === "Orchestrator" && e.text.includes("Delivery Report")
+      );
+      const exec: PartialExecState = {
         stage: "delivery",
         currentPage: "tasks",
+        nodes,
+        activeStepIndex: completeIdx,
         selectedNodeId: nodes[completeIdx].id,
-        logs:
-          log && !state.logs.includes(log) ? [...state.logs, log] : state.logs,
+        revealedNodeCount: nodes.length,
+        interventionRules: state.interventionRules,
+        confirmedCouncilOptionId: state.confirmedCouncilOptionId,
+        interventionFeedback: state.interventionFeedback,
+      };
+      const timeline =
+        alreadyHasComplete || !nodeLog
+          ? state.timeline
+          : [
+              ...state.timeline,
+              buildTimelineEvent(
+                { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+                exec,
+                nodeLog.checkpoint
+              ),
+            ];
+      const taskFields = extractTaskFields({ ...state, ...exec, timeline });
+      return {
+        ...exec,
+        timeline,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
       };
     }),
+
+  restoreCheckpoint: (eventId) => {
+    const state = get();
+    const idx = state.timeline.findIndex((e) => e.id === eventId);
+    if (idx < 0) return;
+    const event = state.timeline[idx];
+    if (!event.checkpoint) return;
+
+    get().stopAutoRun();
+    const snap = event.snapshot;
+    const taskFields = extractTaskFields({
+      ...state,
+      stage: snap.stage,
+      nodes: snap.nodes.map((n) => ({
+        ...n,
+        input: [...n.input],
+        output: [...n.output],
+      })),
+      revealedNodeCount: snap.revealedNodeCount,
+      activeStepIndex: snap.activeStepIndex,
+      selectedNodeId: snap.selectedNodeId,
+      interventionRules: snap.interventionRules.map((r) => ({
+        ...r,
+        affectedAgents: [...r.affectedAgents],
+      })),
+      confirmedCouncilOptionId: snap.confirmedCouncilOptionId,
+      interventionFeedback: snap.interventionFeedback,
+      timeline: state.timeline.slice(0, idx + 1),
+    });
+    set({
+      stage: snap.stage,
+      currentPage: snap.currentPage,
+      nodes: taskFields.nodes,
+      revealedNodeCount: taskFields.revealedNodeCount,
+      activeStepIndex: taskFields.activeStepIndex,
+      selectedNodeId: taskFields.selectedNodeId,
+      interventionRules: taskFields.interventionRules,
+      confirmedCouncilOptionId: taskFields.confirmedCouncilOptionId,
+      interventionFeedback: taskFields.interventionFeedback,
+      timeline: taskFields.timeline,
+      tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      isAutoRunning: false,
+    });
+  },
 }));
