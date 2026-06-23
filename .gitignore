@@ -1,17 +1,33 @@
-node_modules
-dist
+# deps & build
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.vite/
 .node
+
+# env & secrets —— 永远不要进仓
+.env
+.env.*
+!.env.example
 *.local
+
+# 本地状态 / 会话转储 / 归档
+*.session.json
+my-session.json
+*.zip
+*.tar.gz
+*.log
+
+# editor & OS
 .DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 项目专属
 .claude
 design-comparison
-
-# TypeScript incremental build cache
-*.tsbuildinfo
-
-# Stray archives
-*.zip
-
 api/
-
 hci_ide_mvp_plan.md
