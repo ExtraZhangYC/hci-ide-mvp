@@ -1,5 +1,9 @@
 import type { DemoTask, WorkflowNodeData } from "@/types";
-import { workflowNodes as baseWorkflowNodes } from "@/data/workflow";
+import {
+  workflowNodes as baseWorkflowNodes,
+  primaryIndexInColumn,
+  revealedCountThroughColumn,
+} from "@/data/workflow";
 import { DEFAULT_TASK_TEXT } from "@/data/deliveryReport";
 
 const cloneNodes = (): WorkflowNodeData[] =>
@@ -9,13 +13,11 @@ const cloneNodes = (): WorkflowNodeData[] =>
     output: [...n.output],
   }));
 
-function nodesWithProgress(
-  doneCount: number,
-  activeIndex: number
-): WorkflowNodeData[] {
-  return cloneNodes().map((n, i) => {
-    if (i < doneCount) return { ...n, status: "done" as const };
-    if (i === activeIndex) return { ...n, status: "active" as const };
+/** 进度到第 activeCol 列：之前列 done，该列 active（并行列两节点同时点亮），其余 pending */
+function nodesProgressAtColumn(activeCol: number): WorkflowNodeData[] {
+  return cloneNodes().map((n) => {
+    if (n.column < activeCol) return { ...n, status: "done" as const };
+    if (n.column === activeCol) return { ...n, status: "active" as const };
     return n;
   });
 }
@@ -24,6 +26,13 @@ function allDoneNodes(): WorkflowNodeData[] {
   return cloneNodes().map((n) => ({ ...n, status: "done" as const }));
 }
 
+const TOTAL_NODES = baseWorkflowNodes.length;
+const COMPLETE_INDEX = baseWorkflowNodes.findIndex(
+  (n) => n.id === "n18-run-complete"
+);
+/** 执行段（N7 执行中）所在列 */
+const EXEC_COLUMN = 7;
+
 export const initialTasks: DemoTask[] = [
   {
     id: "task-permission",
@@ -31,10 +40,10 @@ export const initialTasks: DemoTask[] = [
     taskText: DEFAULT_TASK_TEXT,
     stage: "executing",
     analysisReady: true,
-    nodes: nodesWithProgress(7, 7),
-    revealedNodeCount: 8,
-    activeStepIndex: 7,
-    selectedNodeId: "n7-executing",
+    nodes: nodesProgressAtColumn(EXEC_COLUMN),
+    revealedNodeCount: revealedCountThroughColumn(baseWorkflowNodes, EXEC_COLUMN),
+    activeStepIndex: primaryIndexInColumn(baseWorkflowNodes, EXEC_COLUMN),
+    selectedNodeId: "n7-executing-be",
     interventionRules: [],
     confirmedCouncilOptionId: null,
     interventionFeedback: null,
@@ -62,8 +71,8 @@ export const initialTasks: DemoTask[] = [
     stage: "delivery",
     analysisReady: true,
     nodes: allDoneNodes(),
-    revealedNodeCount: 18,
-    activeStepIndex: 17,
+    revealedNodeCount: TOTAL_NODES,
+    activeStepIndex: COMPLETE_INDEX,
     selectedNodeId: "n18-run-complete",
     interventionRules: [],
     confirmedCouncilOptionId: "option-a",

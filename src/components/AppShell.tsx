@@ -8,10 +8,12 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { useDemoStore } from "@/store/useDemoStore";
 import type { DemoStage, PageKey } from "@/types";
 import { cn } from "@/lib/utils";
+import { useResizableWidth } from "@/lib/useResizableWidth";
 
 const otherNavItems: { key: PageKey; label: string; icon: typeof Users }[] = [
   { key: "agents", label: "Agent Board", icon: Users },
@@ -67,6 +69,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const selectTask = useDemoStore((s) => s.selectTask);
 
   const [taskBoardExpanded, setTaskBoardExpanded] = useState(true);
+  const {
+    width: navWidth,
+    collapsed: navCollapsed,
+    setCollapsed: setNavCollapsed,
+    onResizeStart: onNavResizeStart,
+    dragging: navDragging,
+  } = useResizableWidth({
+    side: "left",
+    defaultWidth: 240,
+    minWidth: 184,
+    maxWidth: 360,
+    storageKey: "nav",
+  });
 
   const activeNode = activeStepIndex >= 0 ? nodes[activeStepIndex] : null;
   const humanLive = humanStages.includes(stage);
@@ -76,25 +91,59 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-ink-950 text-slate-200">
       {/* Command deck */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-ink-900/70">
-        <div className="flex items-center gap-3 border-b border-line px-5 py-[18px]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-command shadow-glow">
+      <aside
+        className={cn(
+          "relative flex shrink-0 flex-col border-r border-line bg-ink-900/70",
+          !navDragging.current && "transition-[width] duration-150"
+        )}
+        style={{ width: navCollapsed ? 64 : navWidth }}
+      >
+        {/* 折叠 / 展开把手 */}
+        <button
+          type="button"
+          onClick={() => setNavCollapsed((v) => !v)}
+          title={navCollapsed ? "展开工作台" : "收起工作台"}
+          className="absolute -right-3 top-7 z-30 flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-ink-850 text-slate-400 shadow-md transition-colors hover:border-slate-500 hover:text-slate-200"
+        >
+          {navCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </button>
+
+        <div
+          className={cn(
+            "flex items-center gap-3 border-b border-line py-[18px]",
+            navCollapsed ? "justify-center px-0" : "px-5"
+          )}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-command shadow-glow">
             <Boxes className="h-5 w-5 text-white" />
           </div>
-          <div className="leading-tight">
-            <div className="font-display text-sm font-semibold tracking-tight text-white">
-              HCI · IDE
+          {!navCollapsed && (
+            <div className="leading-tight">
+              <div className="font-display text-sm font-semibold tracking-tight text-white">
+                HCI · IDE
+              </div>
+              <div className="callsign text-[9px] text-slate-500">
+                AGENT TEAM CONSOLE
+              </div>
             </div>
-            <div className="callsign text-[9px] text-slate-500">
-              AGENT TEAM CONSOLE
-            </div>
-          </div>
+          )}
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          <div className="callsign px-2 pb-2 text-[9px] text-slate-600">
-            // 工作台
-          </div>
+        <nav
+          className={cn(
+            "flex-1 space-y-1 overflow-y-auto py-4",
+            navCollapsed ? "px-2" : "px-3"
+          )}
+        >
+          {!navCollapsed && (
+            <div className="callsign px-2 pb-2 text-[9px] text-slate-600">
+              // 工作台
+            </div>
+          )}
 
           {/* Agent Board */}
           {otherNavItems
@@ -106,15 +155,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button
                   key={item.key}
                   onClick={() => setPage(item.key)}
+                  title={navCollapsed ? item.label : undefined}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    "flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors",
+                    navCollapsed ? "justify-center px-0" : "px-3",
                     active
                       ? "bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30"
                       : "text-slate-400 hover:bg-ink-700 hover:text-slate-100"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!navCollapsed && item.label}
                 </button>
               );
             })}
@@ -124,30 +175,34 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex items-center">
               <button
                 onClick={() => setPage("tasks")}
+                title={navCollapsed ? "Task Board" : undefined}
                 className={cn(
-                  "flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                  "flex flex-1 items-center gap-3 rounded-lg py-2 text-sm transition-colors",
+                  navCollapsed ? "justify-center px-0" : "px-3",
                   isTaskPage
                     ? "bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30"
                     : "text-slate-400 hover:bg-ink-700 hover:text-slate-100"
                 )}
               >
-                <Network className="h-4 w-4" />
-                Task Board
+                <Network className="h-4 w-4 shrink-0" />
+                {!navCollapsed && "Task Board"}
               </button>
-              <button
-                onClick={() => setTaskBoardExpanded((v) => !v)}
-                className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-ink-700 hover:text-slate-300"
-                aria-label={taskBoardExpanded ? "收起任务列表" : "展开任务列表"}
-              >
-                {taskBoardExpanded ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" />
-                )}
-              </button>
+              {!navCollapsed && (
+                <button
+                  onClick={() => setTaskBoardExpanded((v) => !v)}
+                  className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-ink-700 hover:text-slate-300"
+                  aria-label={taskBoardExpanded ? "收起任务列表" : "展开任务列表"}
+                >
+                  {taskBoardExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
             </div>
 
-            {taskBoardExpanded && (
+            {!navCollapsed && taskBoardExpanded && (
               <div className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-800/80 pl-2">
                 {tasks.map((task) => {
                   const selected = isTaskPage && task.id === activeTaskId;
@@ -198,35 +253,54 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button
                   key={item.key}
                   onClick={() => setPage(item.key)}
+                  title={navCollapsed ? item.label : undefined}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    "flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors",
+                    navCollapsed ? "justify-center px-0" : "px-3",
                     active
                       ? "bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30"
                       : "text-slate-400 hover:bg-ink-700 hover:text-slate-100"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!navCollapsed && item.label}
                 </button>
               );
             })}
         </nav>
 
         <div className="border-t border-line p-3">
-          <div className="mb-2 flex items-center justify-between px-2">
-            <span className="callsign text-[9px] text-slate-600">CREW</span>
-            <span className="font-mono text-[11px] text-slate-400 tabular">
-              {String(assignedAgentIds.length).padStart(2, "0")} / 04
-            </span>
-          </div>
+          {!navCollapsed && (
+            <div className="mb-2 flex items-center justify-between px-2">
+              <span className="callsign text-[9px] text-slate-600">CREW</span>
+              <span className="font-mono text-[11px] text-slate-400 tabular">
+                {String(assignedAgentIds.length).padStart(2, "0")} / 04
+              </span>
+            </div>
+          )}
           <button
             onClick={resetDemo}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-rose-600/15 hover:text-rose-200"
+            title={navCollapsed ? "Reset Demo" : undefined}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md py-2 text-sm text-slate-400 transition-colors hover:bg-rose-600/15 hover:text-rose-200",
+              navCollapsed ? "justify-center px-0" : "px-3"
+            )}
           >
-            <RotateCcw className="h-4 w-4" />
-            Reset Demo
+            <RotateCcw className="h-4 w-4 shrink-0" />
+            {!navCollapsed && "Reset Demo"}
           </button>
         </div>
+
+        {/* 拖拽调宽手柄（右内边缘，仅展开时） */}
+        {!navCollapsed && (
+          <div
+            onMouseDown={onNavResizeStart}
+            title="拖拽调整宽度"
+            className="group absolute inset-y-0 right-0 z-20 w-1.5 cursor-col-resize"
+          >
+            <div className="h-full w-full transition-colors group-hover:bg-command/40" />
+          </div>
+        )}
       </aside>
 
       {/* Main */}

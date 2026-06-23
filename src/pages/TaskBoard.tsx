@@ -23,6 +23,7 @@ import { ExecutionTimeline } from "@/components/ExecutionTimeline";
 import { NodeInspector } from "@/components/NodeInspector";
 import { InterveneDialog } from "@/components/InterveneDialog";
 import { DeliveryReport } from "@/components/DeliveryReport";
+import { SidePanel } from "@/components/SidePanel";
 import { taskUnderstanding } from "@/data/deliveryReport";
 import type { DemoStage } from "@/types";
 
@@ -67,17 +68,18 @@ export function TaskBoard() {
   const showRecommend =
     stage === "analyzing" || stage === "workflow_recommended";
   const showExecuteControls = stage === "executing";
-  const showIntervene = activeNode?.id === "n7-executing";
+  // 用 code 判断（并行执行段节点 id 带 -be/-te 后缀，code 仍为 N7）
+  const showIntervene = activeNode?.code === "N7";
   const showCouncil =
-    activeNode?.id === "n13-gate" || activeNode?.id === "n14-council";
+    activeNode?.code === "N13" || activeNode?.code === "N14";
   const showDelivered = stage === "delivery";
 
   const hasWorkflow = stage !== "idle" && stage !== "team_configured" && stage !== "analyzing";
 
   return (
-    <div className="grid h-full grid-cols-[1fr_400px] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Left column */}
-      <div className="flex min-w-0 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Command Bar */}
         <div className="border-b border-line px-5 py-4">
           <div className="mb-2 flex items-center gap-3">
@@ -195,7 +197,14 @@ export function TaskBoard() {
       </div>
 
       {/* Right column */}
-      <aside className="min-h-0 border-l border-slate-800/80 bg-ink-900/40">
+      <SidePanel
+        side="right"
+        title="详情面板 · Inspector"
+        defaultWidth={400}
+        minWidth={300}
+        maxWidth={620}
+        storageKey="task-inspector"
+      >
         {stage === "delivery" ? (
           <DeliveryReport />
         ) : stage === "analyzing" || stage === "workflow_recommended" ? (
@@ -205,7 +214,7 @@ export function TaskBoard() {
         ) : (
           <NodeInspector />
         )}
-      </aside>
+      </SidePanel>
 
       <InterveneDialog
         open={interveneOpen}

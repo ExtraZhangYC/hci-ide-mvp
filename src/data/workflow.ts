@@ -1,31 +1,219 @@
 import type { Lane, WorkflowNodeData } from "@/types";
 
-/** 泳道顺序（自上而下）= 责任方分区 */
+/** 泳道顺序（自上而下）= 执行角色分区 */
 export const lanes: Lane[] = [
   "User",
-  "Coord",
-  "Context",
-  "Driver",
-  "Gate",
+  "System",
+  "Backend",
+  "Test",
+  "Security",
   "Council",
-  "Merge",
 ];
 
 export const laneLabels: Record<Lane, string> = {
   User: "User · 用户 / 前端",
-  Coord: "C · 协调编排",
-  Context: "B · 角色 / 记忆",
-  Driver: "A · Driver 执行",
-  Gate: "D · Hook / Gate",
+  System: "System · 调度 / 协调",
+  Backend: "Backend · 后端 Agent",
+  Test: "Test · 测试 Agent",
+  Security: "Security · 安全 / Gate",
   Council: "Council · 议会",
-  Merge: "Merger · 合并边界",
 };
 
 /**
  * 端到端主链路 N0–N18（见 api/需求到处理-全流程图与状态机.md）。
  * 每个节点的 decided / tbd 字段直接来自 api/前端字段清单.json。
+ *
+ * 拓扑：N0–N3 为共享前段；N3 后分叉出 Backend / Test 两条并发执行子链
+ * （各跑 N4–N9，column 4–9 同列并行）；在 N10 收敛回 System 主干，
+ * 经 Security 的 Gate(N13)、可选 Council(N14)、合并(N15–N18)完成。
+ *
  * store 会基于此创建可变副本，仅改动 status 字段。
  */
+
+/** N4–N9 执行段模板：按角色生成一条并发子链（id 加 -be / -te 后缀） */
+function makeExecSegment(
+  suffix: "be" | "te",
+  lane: Extract<Lane, "Backend" | "Test">,
+  ownerName: string
+): WorkflowNodeData[] {
+  const s = (base: string) => `${base}-${suffix}`;
+  return [
+    {
+      id: s("n4-claim"),
+      code: "N4",
+      label: "Claim",
+      labelCn: "认领任务",
+      lane,
+      direction: "C",
+      column: 4,
+      deps: ["n3-create-run"],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "claimed",
+      frozen: "frozen",
+      summary: "_coord.task.claim：Agent 认领子任务，签发文件租约 FileLease。",
+      input: ["task_id", "agent_id"],
+      output: ["Task(claimed)", "AgentRecord", "FileLease"],
+      decided: [
+        { key: "owner_agent_id", desc: "认领的 Agent" },
+        { key: "agent", desc: "{ agent_id, role_id, driver_id, session_id, status, worktree_id?, last_heartbeat? }" },
+        { key: "file_lease", desc: "{ lease_id, path_glob, scope: read|write, expires_at, status }" },
+      ],
+      tbd: [{ key: "agent.capabilities", desc: "Agent 能力集 schema 待 A/B 定" }],
+      events: ["task.claimed"],
+      risk: "文件租约冲突会阻塞认领；并行子任务需路径不重叠。",
+      nextAction: "进入 N5 构建 ContextPack。",
+    },
+    {
+      id: s("n5-contextpack"),
+      code: "N5",
+      label: "ContextPack",
+      labelCn: "构建 ContextPack",
+      lane,
+      direction: "B",
+      column: 5,
+      deps: [s("n4-claim")],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "claimed",
+      frozen: "partial",
+      summary: "组装上下文包，引用 B 方向的角色画像 RoleProfileRef。",
+      input: ["RoleProfileRef", "artifact_refs"],
+      output: ["ContextPackRef"],
+      decided: [
+        { key: "context_pack_id", desc: "string" },
+        { key: "uri", desc: "string" },
+        { key: "summary", desc: "string? 上下文摘要" },
+        { key: "role_profile_id", desc: "角色画像引用" },
+        { key: "capability_tags", desc: "string[]?" },
+      ],
+      tbd: [
+        { key: "persona_ref / skill_refs / experience_refs", desc: "B 的画像/技能/经验引用格式待 B 定" },
+      ],
+      events: [],
+      risk: "B 画像字段未冻结，引用格式可能调整。",
+      nextAction: "进入 N6 启动 Driver。",
+    },
+    {
+      id: s("n6-start-driver"),
+      code: "N6",
+      label: "Start Driver",
+      labelCn: "启动 Driver Session",
+      lane,
+      direction: "A",
+      column: 6,
+      deps: [s("n5-contextpack")],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "running",
+      frozen: "partial",
+      summary: "启动 Driver 会话，绑定 session_id，子任务进入 running。",
+      input: ["ContextPack", "prompt"],
+      output: ["AgentRecord.session_id"],
+      decided: [
+        { key: "session_id", desc: "string" },
+        { key: "driver_id", desc: "string" },
+        { key: "started_at", desc: "时间" },
+      ],
+      tbd: [{ key: "capabilities", desc: "driver 是否支持实时事件等，待 A 定" }],
+      events: ["task.started"],
+      risk: "Driver schema 待 A 冻结。",
+      nextAction: "进入 N7 执行中。",
+    },
+    {
+      id: s("n7-executing"),
+      code: "N7",
+      label: "Executing",
+      labelCn: "执行中",
+      lane,
+      direction: "A",
+      column: 7,
+      deps: [s("n6-start-driver")],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "running",
+      frozen: "partial",
+      summary: "Driver 执行编码工作；用户可在此节点 Intervene 注入业务规则。",
+      input: ["实现计划", "用户实时介入规则"],
+      output: ["tool_events / diagnostics"],
+      decided: [{ key: "retry_state", desc: "{ attempt, max_attempts, exhausted }" }],
+      tbd: [
+        { key: "tool_events", desc: "工具调用事件流（实时进度），待 A 定" },
+        { key: "budget_usage", desc: "预算消耗，待 A 是否暴露" },
+        { key: "diagnostics", desc: "运行诊断" },
+      ],
+      events: [],
+      risk: "实时进度依赖 A 方向，当前只保证结果入口。",
+      nextAction: "可在此 Intervene 注入规则，随后进入 N8 Driver 结果。",
+    },
+    {
+      id: s("n8-driver-result"),
+      code: "N8",
+      label: "Driver Result",
+      labelCn: "Driver 运行结果",
+      lane,
+      direction: "A",
+      column: 8,
+      deps: [s("n7-executing")],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "running",
+      frozen: "partial",
+      summary: "Driver 返回 DriverRunResultForCoordination（C 侧消费入口已冻结）。",
+      input: ["执行过程"],
+      output: ["DriverRunResultForCoordination"],
+      decided: [
+        { key: "session_id", desc: "string" },
+        { key: "status", desc: "success | failed | cancelled | timeout" },
+        { key: "transcript_ref", desc: "{ artifact_id, type, uri }?" },
+        { key: "error", desc: "{ code, message, retryable? }?" },
+      ],
+      tbd: [{ key: "其余字段", desc: "A 正式 DriverRunResult 冻结后补全" }],
+      events: [],
+      risk: "失败 + retryable 会触发 N7 重试回流。",
+      nextAction: "进入 N9 注册 Artifact。",
+    },
+    {
+      id: s("n9-artifact"),
+      code: "N9",
+      label: "Register Artifact",
+      labelCn: "注册 Artifact",
+      lane,
+      direction: "C",
+      column: 9,
+      deps: [s("n8-driver-result")],
+      owner: ownerName,
+      status: "pending",
+      taskStatus: "running",
+      frozen: "frozen",
+      summary: "_coord.artifact.register：登记补丁 / 测试日志等产物 ArtifactRef。",
+      input: ["Artifact"],
+      output: ["ArtifactRef"],
+      decided: [
+        { key: "artifact_id", desc: "string" },
+        { key: "type", desc: "patch | diff | test_log | transcript | driver_report | review | ..." },
+        { key: "uri", desc: "查看/下载地址" },
+        { key: "sha256", desc: "string?" },
+        { key: "producer_type", desc: "agent | driver | gate | council | merger | runtime" },
+        { key: "created_at", desc: "时间" },
+      ],
+      tbd: [],
+      events: [],
+      risk: "—",
+      nextAction: "两条子链产物在 N10 收敛。",
+    },
+  ];
+}
+
+const backendSegment = makeExecSegment("be", "Backend", "Backend Agent · backend-a");
+const testSegment = makeExecSegment("te", "Test", "Test Agent · test-agent");
+
+/** 并行段按 column 交错排列（同列 Backend 在前、Test 在后），保证数组按 (column, lane) 有序 */
+const parallelSegment: WorkflowNodeData[] = backendSegment.flatMap((be, i) => [
+  be,
+  testSegment[i],
+]);
+
 export const workflowNodes: WorkflowNodeData[] = [
   {
     id: "n0-intake",
@@ -34,6 +222,8 @@ export const workflowNodes: WorkflowNodeData[] = [
     labelCn: "需求到达 IDE",
     lane: "User",
     direction: "User",
+    column: 0,
+    deps: [],
     owner: "User / 前端",
     status: "pending",
     taskStatus: null,
@@ -57,14 +247,16 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N1",
     label: "Triage",
     labelCn: "分诊",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 1,
+    deps: ["n0-intake"],
     owner: "C / Runtime（M3）",
     status: "pending",
     taskStatus: null,
     statusNote: "(triaged) · 扩展态，v0 不要求",
     frozen: "tbd",
-    summary: "分析需求风险、影响路径与建议角色，产出 TaskCreateRequest 草案。",
+    summary: "分析需求风险、影响路径与建议角色，拆分为可并行的子任务，产出 TaskCreateRequest 草案。",
     input: ["raw_spec_text"],
     output: ["TaskCreateRequest 草案"],
     decided: [],
@@ -83,8 +275,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N2",
     label: "Create Task",
     labelCn: "创建 Task",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 2,
+    deps: ["n1-triage"],
     owner: "Coordinator",
     status: "pending",
     taskStatus: "created",
@@ -114,13 +308,15 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N3",
     label: "Create Run",
     labelCn: "创建 Run",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 3,
+    deps: ["n2-create-task"],
     owner: "C / Runtime",
     status: "pending",
     taskStatus: "created",
     frozen: "frozen",
-    summary: "_coord.run.create：为 Task 创建一次执行 Run(created)。",
+    summary: "_coord.run.create：为 Task 创建一次执行 Run(created)，随后分发给 Backend / Test 两个角色 Agent 并行认领。",
     input: ["task_id"],
     output: ["Run(created)"],
     decided: [
@@ -132,173 +328,24 @@ export const workflowNodes: WorkflowNodeData[] = [
     tbd: [],
     events: [],
     risk: "—",
-    nextAction: "进入 N4 认领任务。",
+    nextAction: "分叉为 Backend / Test 两条并发子链（各自 N4 认领）。",
   },
-  {
-    id: "n4-claim",
-    code: "N4",
-    label: "Claim",
-    labelCn: "认领任务",
-    lane: "Coord",
-    direction: "C",
-    owner: "Coordinator",
-    status: "pending",
-    taskStatus: "claimed",
-    frozen: "frozen",
-    summary: "_coord.task.claim：Agent 认领任务，签发文件租约 FileLease。",
-    input: ["task_id", "agent_id"],
-    output: ["Task(claimed)", "AgentRecord", "FileLease"],
-    decided: [
-      { key: "owner_agent_id", desc: "认领的 Agent" },
-      { key: "agent", desc: "{ agent_id, role_id, driver_id, session_id, status, worktree_id?, last_heartbeat? }" },
-      { key: "file_lease", desc: "{ lease_id, path_glob, scope: read|write, expires_at, status }" },
-    ],
-    tbd: [{ key: "agent.capabilities", desc: "Agent 能力集 schema 待 A/B 定" }],
-    events: ["task.claimed"],
-    risk: "文件租约冲突会阻塞认领。",
-    nextAction: "进入 N5 构建 ContextPack。",
-  },
-  {
-    id: "n5-contextpack",
-    code: "N5",
-    label: "ContextPack",
-    labelCn: "构建 ContextPack",
-    lane: "Context",
-    direction: "B",
-    owner: "C / Runtime + B",
-    status: "pending",
-    taskStatus: "claimed",
-    frozen: "partial",
-    summary: "组装上下文包，引用 B 方向的角色画像 RoleProfileRef。",
-    input: ["RoleProfileRef", "artifact_refs"],
-    output: ["ContextPackRef"],
-    decided: [
-      { key: "context_pack_id", desc: "string" },
-      { key: "uri", desc: "string" },
-      { key: "summary", desc: "string? 上下文摘要" },
-      { key: "role_profile_id", desc: "角色画像引用" },
-      { key: "capability_tags", desc: "string[]?" },
-    ],
-    tbd: [
-      { key: "persona_ref / skill_refs / experience_refs", desc: "B 的画像/技能/经验引用格式待 B 定" },
-    ],
-    events: [],
-    risk: "B 画像字段未冻结，引用格式可能调整。",
-    nextAction: "进入 N6 启动 Driver。",
-  },
-  {
-    id: "n6-start-driver",
-    code: "N6",
-    label: "Start Driver",
-    labelCn: "启动 Driver Session",
-    lane: "Driver",
-    direction: "A",
-    owner: "A · Driver",
-    status: "pending",
-    taskStatus: "running",
-    frozen: "partial",
-    summary: "启动 Driver 会话，绑定 session_id，任务进入 running。",
-    input: ["ContextPack", "prompt"],
-    output: ["AgentRecord.session_id"],
-    decided: [
-      { key: "session_id", desc: "string" },
-      { key: "driver_id", desc: "string" },
-      { key: "started_at", desc: "时间" },
-    ],
-    tbd: [{ key: "capabilities", desc: "driver 是否支持实时事件等，待 A 定" }],
-    events: ["task.started"],
-    risk: "Driver schema 待 A 冻结。",
-    nextAction: "进入 N7 执行中。",
-  },
-  {
-    id: "n7-executing",
-    code: "N7",
-    label: "Executing",
-    labelCn: "执行中",
-    lane: "Driver",
-    direction: "A",
-    owner: "A · Driver",
-    status: "pending",
-    taskStatus: "running",
-    frozen: "partial",
-    summary: "Driver 执行编码工作；用户可在此节点 Intervene 注入业务规则。",
-    input: ["实现计划", "用户实时介入规则"],
-    output: ["tool_events / diagnostics"],
-    decided: [{ key: "retry_state", desc: "{ attempt, max_attempts, exhausted }" }],
-    tbd: [
-      { key: "tool_events", desc: "工具调用事件流（实时进度），待 A 定" },
-      { key: "budget_usage", desc: "预算消耗，待 A 是否暴露" },
-      { key: "diagnostics", desc: "运行诊断" },
-    ],
-    events: [],
-    risk: "实时进度依赖 A 方向，当前只保证结果入口。",
-    nextAction: "可在此 Intervene 注入规则，随后进入 N8 Driver 结果。",
-  },
-  {
-    id: "n8-driver-result",
-    code: "N8",
-    label: "Driver Result",
-    labelCn: "Driver 运行结果",
-    lane: "Driver",
-    direction: "A",
-    owner: "A · Driver",
-    status: "pending",
-    taskStatus: "running",
-    frozen: "partial",
-    summary: "Driver 返回 DriverRunResultForCoordination（C 侧消费入口已冻结）。",
-    input: ["执行过程"],
-    output: ["DriverRunResultForCoordination"],
-    decided: [
-      { key: "session_id", desc: "string" },
-      { key: "status", desc: "success | failed | cancelled | timeout" },
-      { key: "transcript_ref", desc: "{ artifact_id, type, uri }?" },
-      { key: "error", desc: "{ code, message, retryable? }?" },
-    ],
-    tbd: [{ key: "其余字段", desc: "A 正式 DriverRunResult 冻结后补全" }],
-    events: [],
-    risk: "失败 + retryable 会触发 N7 重试回流。",
-    nextAction: "进入 N9 注册 Artifact。",
-  },
-  {
-    id: "n9-artifact",
-    code: "N9",
-    label: "Register Artifact",
-    labelCn: "注册 Artifact",
-    lane: "Coord",
-    direction: "C",
-    owner: "Coordinator",
-    status: "pending",
-    taskStatus: "running",
-    frozen: "frozen",
-    summary: "_coord.artifact.register：登记补丁 / 测试日志等产物 ArtifactRef。",
-    input: ["Artifact"],
-    output: ["ArtifactRef"],
-    decided: [
-      { key: "artifact_id", desc: "string" },
-      { key: "type", desc: "patch | diff | test_log | transcript | driver_report | review | ..." },
-      { key: "uri", desc: "查看/下载地址" },
-      { key: "sha256", desc: "string?" },
-      { key: "producer_type", desc: "agent | driver | gate | council | merger | runtime" },
-      { key: "created_at", desc: "时间" },
-    ],
-    tbd: [],
-    events: [],
-    risk: "—",
-    nextAction: "进入 N10 task.completed。",
-  },
+  ...parallelSegment,
   {
     id: "n10-task-completed",
     code: "N10",
     label: "task.completed",
     labelCn: "完成事件",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 10,
+    deps: ["n9-artifact-be", "n9-artifact-te"],
     owner: "Coordinator",
     status: "pending",
     taskStatus: "reviewing",
     frozen: "frozen",
-    summary: "发出 task.completed 事件，任务进入 reviewing，触发 Hook 路由。",
-    input: ["ArtifactRef"],
+    summary: "两条子链产物收敛；发出 task.completed 事件，任务进入 reviewing，触发 Hook 路由。",
+    input: ["ArtifactRef（Backend）", "ArtifactRef（Test）"],
     output: ["Event(task.completed)"],
     decided: [
       { key: "event_id", desc: "string" },
@@ -310,7 +357,7 @@ export const workflowNodes: WorkflowNodeData[] = [
     ],
     tbd: [],
     events: ["task.completed"],
-    risk: "—",
+    risk: "需等待全部并行子链产物齐备方可收敛。",
     nextAction: "进入 N11/N12 Hook 匹配。",
   },
   {
@@ -318,8 +365,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N11/N12",
     label: "Hook + GateRequest",
     labelCn: "Hook 匹配 + 生成 GateRequest",
-    lane: "Gate",
+    lane: "System",
     direction: "D",
+    column: 11,
+    deps: ["n10-task-completed"],
     owner: "D · Hook/Gate",
     status: "pending",
     taskStatus: "reviewing",
@@ -343,8 +392,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N13",
     label: "Gate Decision",
     labelCn: "Gate 决策",
-    lane: "Gate",
+    lane: "Security",
     direction: "D",
+    column: 12,
+    deps: ["n11-hook-gate"],
     owner: "D → C",
     status: "pending",
     taskStatus: "reviewing",
@@ -375,6 +426,8 @@ export const workflowNodes: WorkflowNodeData[] = [
     labelCn: "议会（可选）",
     lane: "Council",
     direction: "C",
+    column: 13,
+    deps: ["n13-gate"],
     owner: "C / Council",
     status: "pending",
     taskStatus: "pending_council",
@@ -400,8 +453,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N15",
     label: "Merge Authorization",
     labelCn: "合并授权",
-    lane: "Merge",
+    lane: "System",
     direction: "C",
+    column: 14,
+    deps: ["n14-council"],
     owner: "C / Runtime",
     status: "pending",
     taskStatus: "reviewing",
@@ -428,8 +483,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N16",
     label: "Checkpoint",
     labelCn: "保存 Checkpoint",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 15,
+    deps: ["n15-merge-auth"],
     owner: "Coordinator",
     status: "pending",
     taskStatus: null,
@@ -456,8 +513,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N17",
     label: "Merge Boundary",
     labelCn: "合并边界",
-    lane: "Merge",
+    lane: "System",
     direction: "Merger",
+    column: 16,
+    deps: ["n16-checkpoint"],
     owner: "Merger",
     status: "pending",
     taskStatus: null,
@@ -481,8 +540,10 @@ export const workflowNodes: WorkflowNodeData[] = [
     code: "N18",
     label: "Run Complete",
     labelCn: "Run 完成",
-    lane: "Coord",
+    lane: "System",
     direction: "C",
+    column: 17,
+    deps: ["n17-merge-boundary"],
     owner: "C / Runtime",
     status: "pending",
     taskStatus: "completed",
@@ -503,10 +564,38 @@ export const workflowNodes: WorkflowNodeData[] = [
   },
 ];
 
+/** 链路最大列号（末列） */
+export const MAX_COLUMN = Math.max(...workflowNodes.map((n) => n.column));
+
+/** 某列在 nodes 数组中的全部下标 */
+export function indicesInColumn(
+  nodes: WorkflowNodeData[],
+  col: number
+): number[] {
+  const out: number[] = [];
+  nodes.forEach((n, i) => {
+    if (n.column === col) out.push(i);
+  });
+  return out;
+}
+
+/** 某列的主节点（首个）下标，用于 activeStepIndex */
+export function primaryIndexInColumn(
+  nodes: WorkflowNodeData[],
+  col: number
+): number {
+  return nodes.findIndex((n) => n.column === col);
+}
+
+/** 揭示到第 col 列（含）时应显示的节点数（数组按 column 有序，等于前缀长度） */
+export function revealedCountThroughColumn(
+  nodes: WorkflowNodeData[],
+  col: number
+): number {
+  return nodes.filter((n) => n.column <= col).length;
+}
+
 /** 关键节点索引（供 store / UI 定位特殊交互） */
-export const EXEC_NODE_INDEX = workflowNodes.findIndex(
-  (n) => n.id === "n7-executing"
-);
 export const GATE_NODE_INDEX = workflowNodes.findIndex(
   (n) => n.id === "n13-gate"
 );
@@ -517,7 +606,6 @@ export const COUNCIL_NODE_INDEX = workflowNodes.findIndex(
 /** 节点 id 常量（避免散落的字符串字面量） */
 export const NODE_IDS = {
   intake: "n0-intake",
-  executing: "n7-executing",
   gate: "n13-gate",
   council: "n14-council",
   complete: "n18-run-complete",

@@ -80,15 +80,14 @@ export type WorkflowNodeStatus =
   | "blocked"
   | "updated";
 
-/** 泳道 = 责任方分区（与协作链路 A/B/C/D 对齐） */
+/** 泳道 = 执行角色分区（User / 调度 / 后端 / 测试 / 安全 / 议会） */
 export type Lane =
   | "User"
-  | "Coord"
-  | "Context"
-  | "Driver"
-  | "Gate"
-  | "Council"
-  | "Merge";
+  | "System"
+  | "Backend"
+  | "Test"
+  | "Security"
+  | "Council";
 
 /** 协调器 Task 主状态机的 11 个核心态（见 需求到处理状态机 §3） */
 export type TaskStatusCore =
@@ -124,8 +123,12 @@ export type WorkflowNodeData = {
   /** 节点中文名 */
   labelCn: string;
   lane: Lane;
-  /** 责任方 A/B/C/D/User/Merger */
+  /** 责任方 A/B/C/D/User/Merger（Spec 归属，与泳道角色解耦） */
   direction: NodeDirection;
+  /** 网格列号（x 轴）；并行兄弟节点共用同一 column */
+  column: number;
+  /** 前驱节点 id 列表，作为连线与揭示门控的真相源 */
+  deps: string[];
   owner: string;
   status: WorkflowNodeStatus;
   /** 该节点对应的协调器主状态（N0/N1/N16/N17 无核心态时为 null） */

@@ -3,6 +3,7 @@ import { agents, getAgentById } from "@/data/agents";
 import { useDemoStore } from "@/store/useDemoStore";
 import { AgentCard } from "@/components/AgentCard";
 import { AgentDetailPanel } from "@/components/AgentDetailPanel";
+import { SidePanel } from "@/components/SidePanel";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +23,9 @@ export function AgentBoard() {
   const teamReady = assignedAgentIds.length >= 3;
 
   return (
-    <div className="grid h-full grid-cols-[1fr_360px] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Left: header + grid */}
-      <div className="flex min-w-0 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-end justify-between border-b border-line px-6 py-5">
           <div>
             <div className="callsign mb-1 text-[10px] text-command-soft">
@@ -116,7 +117,14 @@ export function AgentBoard() {
       </div>
 
       {/* Right: detail panel */}
-      <aside className="min-h-0 border-l border-slate-800/80 bg-ink-900/40">
+      <SidePanel
+        side="right"
+        title="Agent 详情 · Detail"
+        defaultWidth={360}
+        minWidth={300}
+        maxWidth={560}
+        storageKey="agent-detail"
+      >
         <AgentDetailPanel
           agent={selectedAgent}
           assigned={
@@ -125,7 +133,7 @@ export function AgentBoard() {
           onAssign={() => selectedAgent && assignAgent(selectedAgent.id)}
           showAssign={teamCustomizationEnabled}
         />
-      </aside>
+      </SidePanel>
     </div>
   );
 }

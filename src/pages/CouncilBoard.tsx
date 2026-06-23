@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useDemoStore } from "@/store/useDemoStore";
+import { SidePanel } from "@/components/SidePanel";
 import {
   councilContext,
   discussion,
@@ -72,10 +73,18 @@ export function CouncilBoard() {
         </p>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr_340px] overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left: Agent Discussion */}
-        <div className="flex min-h-0 flex-col border-r border-slate-800/80">
-          <PanelTitle icon={MessagesSquare}>Agent Discussion</PanelTitle>
+        <SidePanel
+          side="left"
+          title="Agent Discussion"
+          defaultWidth={300}
+          minWidth={220}
+          maxWidth={460}
+          storageKey="council-discussion"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <PanelTitle icon={MessagesSquare}>Agent Discussion</PanelTitle>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {discussion.map((d, i) => (
               <div
@@ -96,11 +105,12 @@ export function CouncilBoard() {
                 </p>
               </div>
             ))}
+            </div>
           </div>
-        </div>
+        </SidePanel>
 
         {/* Middle: Option Comparison */}
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-w-0 flex-1 min-h-0 flex-col">
           <PanelTitle icon={Scale}>Option Comparison</PanelTitle>
           <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 xl:grid-cols-3">
             {councilOptions.map((opt) => {
@@ -189,8 +199,16 @@ export function CouncilBoard() {
         </div>
 
         {/* Right: CouncilDecision composer */}
-        <div className="flex min-h-0 flex-col border-l border-slate-800/80 bg-ink-900/40">
-          <PanelTitle icon={Gavel}>Human Decision · CouncilDecision</PanelTitle>
+        <SidePanel
+          side="right"
+          title="Human Decision"
+          defaultWidth={340}
+          minWidth={280}
+          maxWidth={520}
+          storageKey="council-decision"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <PanelTitle icon={Gavel}>Human Decision · CouncilDecision</PanelTitle>
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             {/* verdict selector */}
             <div>
@@ -333,7 +351,8 @@ export function CouncilBoard() {
               <ArrowLeft className="h-4 w-4" /> 返回 Task Board
             </Button>
           </div>
-        </div>
+          </div>
+        </SidePanel>
       </div>
     </div>
   );

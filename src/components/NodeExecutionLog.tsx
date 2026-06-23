@@ -171,7 +171,9 @@ function buildLogContent(
   tokenUsage?: string;
   emptyMessage: string;
 } {
-  const base = nodeExecutionLogs[nodeId];
+  // 并行节点 id 带 -be/-te 后缀，剥去后复用同一执行段的日志
+  const baseId = nodeId.replace(/-(be|te)$/, "");
+  const base = nodeExecutionLogs[nodeId] ?? nodeExecutionLogs[baseId];
 
   if (status === "pending") {
     return {
@@ -196,14 +198,14 @@ function buildLogContent(
 
   let lines = [...base.lines];
 
-  if (nodeId === "n7-executing" && interventionRules.length > 0) {
+  if (baseId === "n7-executing" && interventionRules.length > 0) {
     lines = [...lines, ...buildInterventionLogLines(interventionRules[0].text)];
   }
 
   if (
-    nodeId === "n13-gate" ||
-    nodeId === "n15-merge-auth" ||
-    nodeId === "n18-run-complete"
+    baseId === "n13-gate" ||
+    baseId === "n15-merge-auth" ||
+    baseId === "n18-run-complete"
   ) {
     if (interventionRules.length > 0 && status === "done") {
       lines = [
@@ -219,7 +221,7 @@ function buildLogContent(
     }
   }
 
-  if (nodeId === "n14-council" && confirmedCouncilOptionId) {
+  if (baseId === "n14-council" && confirmedCouncilOptionId) {
     lines = [
       ...lines.filter((l) => l.tag !== "WAIT"),
       ...buildCouncilConfirmLogLines("Option A · Use RBAC"),
