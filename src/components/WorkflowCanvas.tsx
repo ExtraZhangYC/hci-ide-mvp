@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -25,12 +25,11 @@ const X_OFFSET = 170;
 
 const laneAccent: Record<string, string> = {
   User: "border-l-human/70", // the human's own lane glows warm
-  Coord: "border-l-command/70", // C · 协调编排 — command azure
-  Context: "border-l-teal-500/60", // B · 角色记忆
-  Driver: "border-l-sky-500/60", // A · Driver 执行
-  Gate: "border-l-indigo-500/60", // D · Hook/Gate
+  System: "border-l-command/70", // 调度 / 协调 — command azure
+  Backend: "border-l-sky-500/60", // 后端 Agent
+  Test: "border-l-teal-500/60", // 测试 Agent
+  Security: "border-l-indigo-500/60", // 安全 / Gate
   Council: "border-l-violet-500/60",
-  Merge: "border-l-emerald-500/60",
 };
 
 // 责任方角标配色（A/B/C/D/User/Merger）
@@ -150,17 +149,28 @@ function WorkflowCanvasInner() {
   const selectedNodeId = useDemoStore((s) => s.selectedNodeId);
   const selectNode = useDemoStore((s) => s.selectNode);
   const { fitView } = useReactFlow();
+  const prevRevealedCount = useRef(0);
 
   const wfNodes = useMemo(
     () => allNodes.slice(0, revealedNodeCount),
     [allNodes, revealedNodeCount]
   );
 
-  const totalWidth = X_OFFSET + Math.max(wfNodes.length, 1) * COL_GAP;
+  const maxRevealedCol = wfNodes.reduce((m, n) => Math.max(m, n.column), 0);
+  const totalWidth = X_OFFSET + (maxRevealedCol + 2) * COL_GAP;
 
+  // 仅在泳道图首次出现（0 → N）时自动 fit，后续新增节点不重置用户缩放
   useEffect(() => {
-    const t = setTimeout(() => fitView({ padding: 0.15, maxZoom: 1, duration: 300 }), 50);
-    return () => clearTimeout(t);
+    const prev = prevRevealedCount.current;
+    prevRevealedCount.current = revealedNodeCount;
+
+    if (prev === 0 && revealedNodeCount > 0) {
+      const t = setTimeout(
+        () => fitView({ padding: 0.15, maxZoom: 1, duration: 300 }),
+        50
+      );
+      return () => clearTimeout(t);
+    }
   }, [revealedNodeCount, fitView]);
 
   const { nodes, edges } = useMemo(() => {
@@ -181,7 +191,8 @@ function WorkflowCanvasInner() {
       id: wf.id,
       type: "step",
       position: {
-        x: X_OFFSET + i * COL_GAP,
+        // x 由 column 决定，使并行兄弟节点共列
+        x: X_OFFSET + wf.column * COL_GAP,
         y: laneIndex(wf.lane) * LANE_HEIGHT + 26,
       },
       data: {
@@ -194,21 +205,26 @@ function WorkflowCanvasInner() {
       style: { zIndex: 5, width: NODE_W },
     }));
 
+    // 连线由 deps 决定，支持 fan-out（N3→N4·BE/TE）与 fan-in（N9·BE/TE→N10）
+    const revealedIds = new Set(wfNodes.map((n) => n.id));
+    const byId = new Map(wfNodes.map((n) => [n.id, n]));
     const stepEdges: Edge[] = [];
-    for (let i = 0; i < wfNodes.length - 1; i++) {
-      const from = wfNodes[i];
-      const to = wfNodes[i + 1];
-      const animated = from.status === "done" && to.status === "active";
-      stepEdges.push({
-        id: `${from.id}-${to.id}`,
-        source: from.id,
-        target: to.id,
-        animated,
-        style: {
-          stroke: from.status === "done" ? "#3b82f6" : "#334155",
-          strokeWidth: 1.5,
-        },
-      });
+    for (const to of wfNodes) {
+      for (const depId of to.deps) {
+        if (!revealedIds.has(depId)) continue;
+        const from = byId.get(depId)!;
+        const animated = from.status === "done" && to.status === "active";
+        stepEdges.push({
+          id: `${from.id}-${to.id}`,
+          source: from.id,
+          target: to.id,
+          animated,
+          style: {
+            stroke: from.status === "done" ? "#3b82f6" : "#334155",
+            strokeWidth: 1.5,
+          },
+        });
+      }
     }
 
     return { nodes: [...laneNodes, ...stepNodes], edges: stepEdges };
@@ -228,8 +244,6 @@ function WorkflowCanvasInner() {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
-        fitView
-        fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
         minZoom={0.4}
         maxZoom={1.4}
         proOptions={{ hideAttribution: true }}

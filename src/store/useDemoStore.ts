@@ -15,7 +15,13 @@ import {
   nodeLogs,
 } from "@/data/logs";
 import { DEFAULT_TASK_ID, initialTasks } from "@/data/tasks";
-import { NODE_IDS } from "@/data/workflow";
+import {
+  MAX_COLUMN,
+  NODE_IDS,
+  indicesInColumn,
+  primaryIndexInColumn,
+  revealedCountThroughColumn,
+} from "@/data/workflow";
 import { captureSnapshot, nextTimelineId, resetTimelineSeq } from "@/lib/snapshot";
 
 const DOWNSTREAM_UPDATED_IDS = [
@@ -23,6 +29,11 @@ const DOWNSTREAM_UPDATED_IDS = [
   "n15-merge-auth",
   NODE_IDS.complete,
 ];
+
+/** 并行节点 id 形如 `<原id>-be|-te`，剥去后缀以复用同 code 的日志/资源 */
+const stripParallelSuffix = (id: string) => id.replace(/-(be|te)$/, "");
+const getNodeLog = (id: string) =>
+  nodeLogs[id] ?? nodeLogs[stripParallelSuffix(id)];
 
 type PartialExecState = {
   stage: DemoStage;
@@ -296,17 +307,25 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     if (state.stage !== "executing") return;
     const cur = state.activeStepIndex;
     if (cur < 0) return;
-    const node = state.nodes[cur];
+    const curCol = state.nodes[cur].column;
 
-    if (node.id === NODE_IDS.council && !state.confirmedCouncilOptionId) {
+    // 活跃列为 Council 且尚未裁决 → 进入议会
+    if (
+      state.nodes[cur].id === NODE_IDS.council &&
+      !state.confirmedCouncilOptionId
+    ) {
       get().goToCouncil();
       return;
     }
 
     const nodes = state.nodes.map((n) => ({ ...n }));
-    nodes[cur] = { ...nodes[cur], status: "done" };
+    // 当前列整列置 done（并行列两节点一起完成）
+    indicesInColumn(nodes, curCol).forEach((i) => {
+      nodes[i] = { ...nodes[i], status: "done" };
+    });
 
-    if (cur >= nodes.length - 1) {
+    // 末列：进入交付
+    if (curCol >= MAX_COLUMN) {
       const exec: PartialExecState = {
         stage: "delivery",
         currentPage: state.currentPage,
@@ -327,14 +346,18 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       return;
     }
 
-    const nextIndex = cur + 1;
-    nodes[nextIndex] = { ...nodes[nextIndex], status: "active" };
-    const nextNode = nodes[nextIndex];
-    const nodeLog = nodeLogs[nextNode.id];
+    // 推进到下一列：整列置 active（并行列两节点一起点亮）
+    const nextCol = curCol + 1;
+    indicesInColumn(nodes, nextCol).forEach((i) => {
+      nodes[i] = { ...nodes[i], status: "active" };
+    });
+    const primaryIndex = primaryIndexInColumn(nodes, nextCol);
+    const primaryNode = nodes[primaryIndex];
+    const nodeLog = getNodeLog(primaryNode.id);
 
     let stage: DemoStage = "executing";
     let currentPage = state.currentPage;
-    if (nextNode.id === NODE_IDS.council) {
+    if (primaryNode.id === NODE_IDS.council) {
       stage = "council";
       currentPage = "council";
       get().stopAutoRun();
@@ -344,9 +367,9 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       stage,
       currentPage,
       nodes,
-      revealedNodeCount: nextIndex + 1,
-      activeStepIndex: nextIndex,
-      selectedNodeId: nextNode.id,
+      revealedNodeCount: revealedCountThroughColumn(nodes, nextCol),
+      activeStepIndex: primaryIndex,
+      selectedNodeId: primaryNode.id,
       interventionRules: state.interventionRules,
       confirmedCouncilOptionId: state.confirmedCouncilOptionId,
       interventionFeedback: state.interventionFeedback,
@@ -476,11 +499,12 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const state = get();
     const councilIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.council);
     if (councilIdx < 0) return;
-    const nodes = state.nodes.map((n, i) => {
-      if (i < councilIdx) {
+    const councilCol = state.nodes[councilIdx].column;
+    const nodes = state.nodes.map((n) => {
+      if (n.column < councilCol) {
         return n.status === "done" ? n : { ...n, status: "done" as const };
       }
-      if (i === councilIdx) return { ...n, status: "active" as const };
+      if (n.id === NODE_IDS.council) return { ...n, status: "active" as const };
       return n;
     });
     const nodeLog = nodeLogs[NODE_IDS.council];
@@ -493,7 +517,10 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       nodes,
       activeStepIndex: councilIdx,
       selectedNodeId: NODE_IDS.council,
-      revealedNodeCount: Math.max(state.revealedNodeCount, councilIdx + 1),
+      revealedNodeCount: Math.max(
+        state.revealedNodeCount,
+        revealedCountThroughColumn(nodes, councilCol)
+      ),
       interventionRules: state.interventionRules,
       confirmedCouncilOptionId: state.confirmedCouncilOptionId,
       interventionFeedback: state.interventionFeedback,
@@ -520,13 +547,13 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   confirmCouncilOption: (optionId) => {
     const state = get();
-    const councilIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.council);
-    const completeIdx = state.nodes.length - 1;
-    const nodes = state.nodes.map((n, i) => {
-      if (i === councilIdx) return { ...n, status: "done" as const };
-      if (i === completeIdx) return { ...n, status: "active" as const };
-      return n;
-    });
+    const completeIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.complete);
+    // 裁决后：议会与中间合并节点(N15–N17)收束为 done，直达 N18 complete
+    const nodes = state.nodes.map((n) =>
+      n.column < MAX_COLUMN
+        ? { ...n, status: "done" as const }
+        : { ...n, status: "active" as const }
+    );
     const log: LogEntry = {
       time: "00:28",
       source: "Council",
@@ -539,7 +566,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       nodes,
       activeStepIndex: completeIdx,
       selectedNodeId: nodes[completeIdx].id,
-      revealedNodeCount: Math.max(state.revealedNodeCount, completeIdx + 1),
+      revealedNodeCount: state.nodes.length,
       interventionRules: state.interventionRules,
       confirmedCouncilOptionId: optionId,
       interventionFeedback: state.interventionFeedback,
@@ -558,9 +585,11 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   showDelivery: () =>
     set((state) => {
-      const completeIdx = state.nodes.length - 1;
-      const nodes = state.nodes.map((n, i) =>
-        i === completeIdx ? { ...n, status: "done" as const } : n
+      const completeIdx = state.nodes.findIndex(
+        (n) => n.id === NODE_IDS.complete
+      );
+      const nodes = state.nodes.map((n) =>
+        n.column === MAX_COLUMN ? { ...n, status: "done" as const } : n
       );
       const nodeLog = nodeLogs[NODE_IDS.complete];
       const alreadyHasComplete = state.timeline.some(

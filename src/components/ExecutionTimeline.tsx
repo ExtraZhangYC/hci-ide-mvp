@@ -1,5 +1,5 @@
-import { useRef, useEffect } from "react";
-import { Flag, RotateCcw, ScrollText } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, Flag, RotateCcw, ScrollText } from "lucide-react";
 import { useDemoStore } from "@/store/useDemoStore";
 import type { LogLevel, TimelineEvent } from "@/types";
 import { cn } from "@/lib/utils";
@@ -22,11 +22,13 @@ export function ExecutionTimeline() {
   const timeline = useDemoStore((s) => s.timeline);
   const restoreCheckpoint = useDemoStore((s) => s.restoreCheckpoint);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
+    if (collapsed) return;
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.scrollWidth;
-  }, [timeline.length]);
+  }, [timeline.length, collapsed]);
 
   if (timeline.length === 0) return null;
 
@@ -34,38 +36,49 @@ export function ExecutionTimeline() {
 
   return (
     <div className="shrink-0 border-t border-slate-800/80 bg-ink-900/70">
-      <div className="flex items-center gap-2 px-4 py-2">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="flex w-full items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-slate-800/30"
+      >
         <ScrollText className="h-3.5 w-3.5 text-slate-500" />
         <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           执行时间轴
         </span>
         <span className="text-[10px] text-slate-600">
-          · 点击 ◆ Checkpoint 可回溯到该状态
+          · 共 {timeline.length} 条{collapsed ? "（已收起）" : " · 点击 ◆ Checkpoint 可回溯"}
         </span>
-      </div>
+        {collapsed ? (
+          <ChevronUp className="ml-auto h-4 w-4 text-slate-500" />
+        ) : (
+          <ChevronDown className="ml-auto h-4 w-4 text-slate-500" />
+        )}
+      </button>
 
-      <div
-        ref={scrollRef}
-        className="overflow-x-auto px-4 pb-3 scrollbar-thin"
-      >
-        <div className="relative flex min-w-max items-start gap-0 pt-1">
-          {/* 连接线 */}
-          <div
-            className="absolute left-4 right-4 top-[18px] h-px bg-slate-700/80"
-            aria-hidden
-          />
-
-          {timeline.map((event, i) => (
-            <TimelineItem
-              key={event.id}
-              event={event}
-              isLatest={event.id === latestId}
-              isLast={i === timeline.length - 1}
-              onRestore={restoreCheckpoint}
+      {!collapsed && (
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto px-4 pb-3 scrollbar-thin"
+        >
+          <div className="relative flex min-w-max items-start gap-0 pt-1">
+            {/* 连接线 */}
+            <div
+              className="absolute left-4 right-4 top-[18px] h-px bg-slate-700/80"
+              aria-hidden
             />
-          ))}
+
+            {timeline.map((event, i) => (
+              <TimelineItem
+                key={event.id}
+                event={event}
+                isLatest={event.id === latestId}
+                isLast={i === timeline.length - 1}
+                onRestore={restoreCheckpoint}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
