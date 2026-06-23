@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -6,6 +6,8 @@ import {
   Controls,
   Handle,
   Position,
+  useReactFlow,
+  ReactFlowProvider,
   type Node,
   type Edge,
   type NodeProps,
@@ -22,12 +24,22 @@ const COL_GAP = 212;
 const X_OFFSET = 170;
 
 const laneAccent: Record<string, string> = {
-  User: "border-l-blue-500/60",
-  System: "border-l-slate-500/60",
-  Backend: "border-l-cyan-500/60",
-  Test: "border-l-emerald-500/60",
-  Security: "border-l-rose-500/60",
+  User: "border-l-human/70", // the human's own lane glows warm
+  System: "border-l-command/70", // 调度 / 协调 — command azure
+  Backend: "border-l-sky-500/60", // 后端 Agent
+  Test: "border-l-teal-500/60", // 测试 Agent
+  Security: "border-l-indigo-500/60", // 安全 / Gate
   Council: "border-l-violet-500/60",
+};
+
+// 责任方角标配色（A/B/C/D/User/Merger）
+const directionStyles: Record<string, string> = {
+  User: "bg-human/15 text-human-soft",
+  A: "bg-sky-500/15 text-sky-300",
+  B: "bg-teal-500/15 text-teal-300",
+  C: "bg-command/15 text-command-soft",
+  D: "bg-indigo-500/15 text-indigo-300",
+  Merger: "bg-emerald-500/15 text-emerald-300",
 };
 
 const statusStyles: Record<
@@ -35,13 +47,13 @@ const statusStyles: Record<
   { box: string; dot: string; label: string }
 > = {
   pending: {
-    box: "border-slate-700 bg-ink-850 text-slate-400",
+    box: "border-line-bright bg-ink-850 text-slate-400",
     dot: "bg-slate-600",
     label: "待执行",
   },
   active: {
-    box: "border-blue-500 bg-blue-600/15 text-blue-100 ring-2 ring-blue-500/40 shadow-lg shadow-blue-900/30",
-    dot: "bg-blue-400 animate-pulse-ring",
+    box: "border-command bg-command/15 text-slate-100 shadow-glow",
+    dot: "bg-command animate-pulse-ring",
     label: "执行中",
   },
   done: {
@@ -55,8 +67,8 @@ const statusStyles: Record<
     label: "已阻塞",
   },
   updated: {
-    box: "border-amber-400/70 bg-amber-500/10 text-amber-100 border-dashed",
-    dot: "bg-amber-400",
+    box: "border-dashed border-human/70 bg-human/10 text-human-soft shadow-glow-human",
+    dot: "bg-human",
     label: "已被介入",
   },
 };
@@ -64,29 +76,47 @@ const statusStyles: Record<
 type StepNodeData = {
   wf: WorkflowNodeData;
   selected: boolean;
+  isNew?: boolean;
 };
 
 function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
-  const { wf, selected } = data;
+  const { wf, selected, isNew } = data;
   const s = statusStyles[wf.status];
+  // 节点上展示的状态码：优先 canonical TaskStatus，否则用 statusNote 占位
+  const statusCode = wf.taskStatus ?? wf.statusNote ?? "—";
   return (
     <div
       className={cn(
-        "w-[178px] rounded-xl border px-3 py-2.5 transition-all cursor-pointer",
+        "w-[182px] rounded-md border px-3 py-2.5 transition-all cursor-pointer",
         s.box,
-        selected && "ring-2 ring-white/40"
+        selected && "ring-2 ring-white/40",
+        isNew && "animate-fade-in"
       )}
     >
       <Handle type="target" position={Position.Left} className="!opacity-0" />
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">
-          {wf.lane}
+      <div className="flex items-center justify-between gap-1">
+        <span className="flex items-center gap-1">
+          <span className="font-mono text-[9px] font-semibold text-slate-300">
+            {wf.code}
+          </span>
+          <span
+            className={cn(
+              "rounded px-1 py-px font-mono text-[8px] font-semibold",
+              directionStyles[wf.direction] ?? "bg-slate-700/40 text-slate-400"
+            )}
+          >
+            {wf.direction}
+          </span>
         </span>
-        <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+        <span className={cn("led h-2 w-2", s.dot)} />
       </div>
-      <div className="mt-1 text-sm font-semibold leading-tight">{wf.label}</div>
-      <div className="mt-1 truncate text-[10px] text-slate-400">{wf.owner}</div>
-      <div className="mt-1.5 text-[10px] font-medium opacity-80">{s.label}</div>
+      <div className="mt-1 font-display text-[13px] font-semibold leading-tight">
+        {wf.label}
+      </div>
+      <div className="truncate text-[10px] text-slate-400">{wf.labelCn}</div>
+      <div className="mt-1.5 truncate font-mono text-[9px] text-slate-500">
+        {statusCode}
+      </div>
       <Handle type="source" position={Position.Right} className="!opacity-0" />
     </div>
   );
@@ -96,12 +126,12 @@ function LaneNode({ data }: NodeProps<Node<{ label: string; lane: string; width:
   return (
     <div
       className={cn(
-        "h-[116px] rounded-r-lg border-l-4 bg-ink-900/30",
+        "h-[116px] rounded-r-md border-l-[3px] bg-ink-900/30",
         laneAccent[data.lane] ?? "border-l-slate-600"
       )}
       style={{ width: data.width }}
     >
-      <div className="px-3 py-2 text-xs font-semibold text-slate-400">
+      <div className="callsign px-3 py-2 text-[10px] text-slate-400">
         {data.label}
       </div>
     </div>
@@ -113,12 +143,35 @@ const nodeTypes = {
   lane: LaneNode,
 };
 
-export function WorkflowCanvas() {
-  const wfNodes = useDemoStore((s) => s.nodes);
+function WorkflowCanvasInner() {
+  const allNodes = useDemoStore((s) => s.nodes);
+  const revealedNodeCount = useDemoStore((s) => s.revealedNodeCount);
   const selectedNodeId = useDemoStore((s) => s.selectedNodeId);
   const selectNode = useDemoStore((s) => s.selectNode);
+  const { fitView } = useReactFlow();
+  const prevRevealedCount = useRef(0);
 
-  const totalWidth = X_OFFSET + wfNodes.length * COL_GAP;
+  const wfNodes = useMemo(
+    () => allNodes.slice(0, revealedNodeCount),
+    [allNodes, revealedNodeCount]
+  );
+
+  const maxRevealedCol = wfNodes.reduce((m, n) => Math.max(m, n.column), 0);
+  const totalWidth = X_OFFSET + (maxRevealedCol + 2) * COL_GAP;
+
+  // 仅在泳道图首次出现（0 → N）时自动 fit，后续新增节点不重置用户缩放
+  useEffect(() => {
+    const prev = prevRevealedCount.current;
+    prevRevealedCount.current = revealedNodeCount;
+
+    if (prev === 0 && revealedNodeCount > 0) {
+      const t = setTimeout(
+        () => fitView({ padding: 0.15, maxZoom: 1, duration: 300 }),
+        50
+      );
+      return () => clearTimeout(t);
+    }
+  }, [revealedNodeCount, fitView]);
 
   const { nodes, edges } = useMemo(() => {
     const laneIndex = (lane: string) => lanes.indexOf(lane as never);
@@ -138,30 +191,40 @@ export function WorkflowCanvas() {
       id: wf.id,
       type: "step",
       position: {
-        x: X_OFFSET + i * COL_GAP,
+        // x 由 column 决定，使并行兄弟节点共列
+        x: X_OFFSET + wf.column * COL_GAP,
         y: laneIndex(wf.lane) * LANE_HEIGHT + 26,
       },
-      data: { wf, selected: selectedNodeId === wf.id },
+      data: {
+        wf,
+        selected: selectedNodeId === wf.id,
+        isNew: i === wfNodes.length - 1,
+      },
       draggable: false,
       zIndex: 5,
       style: { zIndex: 5, width: NODE_W },
     }));
 
+    // 连线由 deps 决定，支持 fan-out（N3→N4·BE/TE）与 fan-in（N9·BE/TE→N10）
+    const revealedIds = new Set(wfNodes.map((n) => n.id));
+    const byId = new Map(wfNodes.map((n) => [n.id, n]));
     const stepEdges: Edge[] = [];
-    for (let i = 0; i < wfNodes.length - 1; i++) {
-      const from = wfNodes[i];
-      const to = wfNodes[i + 1];
-      const animated = from.status === "done" && to.status === "active";
-      stepEdges.push({
-        id: `${from.id}-${to.id}`,
-        source: from.id,
-        target: to.id,
-        animated,
-        style: {
-          stroke: from.status === "done" ? "#3b82f6" : "#334155",
-          strokeWidth: 1.5,
-        },
-      });
+    for (const to of wfNodes) {
+      for (const depId of to.deps) {
+        if (!revealedIds.has(depId)) continue;
+        const from = byId.get(depId)!;
+        const animated = from.status === "done" && to.status === "active";
+        stepEdges.push({
+          id: `${from.id}-${to.id}`,
+          source: from.id,
+          target: to.id,
+          animated,
+          style: {
+            stroke: from.status === "done" ? "#3b82f6" : "#334155",
+            strokeWidth: 1.5,
+          },
+        });
+      }
     }
 
     return { nodes: [...laneNodes, ...stepNodes], edges: stepEdges };
@@ -181,8 +244,6 @@ export function WorkflowCanvas() {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
-        fitView
-        fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
         minZoom={0.4}
         maxZoom={1.4}
         proOptions={{ hideAttribution: true }}
@@ -198,5 +259,13 @@ export function WorkflowCanvas() {
         />
       </ReactFlow>
     </div>
+  );
+}
+
+export function WorkflowCanvas() {
+  return (
+    <ReactFlowProvider>
+      <WorkflowCanvasInner />
+    </ReactFlowProvider>
   );
 }

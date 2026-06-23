@@ -1,11 +1,18 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "PingFang SC",
+    "Microsoft YaHei", monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
 }
 
 html,
@@ -16,8 +23,47 @@ body,
 
 body {
   margin: 0;
-  background: #020617;
-  color: #e5e7eb;
+  background: #090b10;
+  color: #cbd4e1;
+  /* faint console grid + top glow — the room is backlit, not flat */
+  background-image: radial-gradient(
+      900px 500px at 75% -10%,
+      rgba(77, 141, 240, 0.06),
+      transparent 70%
+    ),
+    linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeric readouts everywhere should line up like instruments */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Mono "callsign" eyebrow — the recurring telemetry label */
+.callsign {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+}
+
+/* Status LED with soft halo */
+.led {
+  position: relative;
+  border-radius: 9999px;
+}
+.led::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: inherit;
+  opacity: 0.35;
+  filter: blur(3px);
 }
 
 /* Scrollbars */
@@ -29,11 +75,11 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #222b3c;
   border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #2e394d;
 }
 
 /* React Flow dark overrides */
@@ -41,9 +87,22 @@ body {
   display: none;
 }
 .react-flow__edge-path {
-  stroke: #334155;
+  stroke: #2a3346;
   stroke-width: 1.5;
 }
 .react-flow__edge.animated .react-flow__edge-path {
-  stroke: #3b82f6;
+  stroke: #4d8df0;
+}
+.react-flow__controls button {
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

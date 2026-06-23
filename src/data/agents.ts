@@ -17,6 +17,23 @@ export const agents: Agent[] = [
     recentTask: "重构订单服务的鉴权中间件",
     description:
       "擅长服务端业务逻辑与权限模型实现，熟悉 RBAC 与多租户场景，输出的代码结构清晰、可测试性强。是本类登录鉴权任务的首选执行者。",
+    runtime: {
+      agent_id: "backend-a",
+      role_id: "backend_engineer",
+      driver_id: "claude-code",
+      driver_name: "Claude Code",
+      session_id: "SES-9920",
+      worktree_id: "wt-auth-017",
+      last_heartbeat: "00:14:02",
+    },
+    capabilityTags: ["auth", "rbac", "middleware", "rest_api", "postgresql"],
+    fileLease: {
+      lease_id: "LEASE-3318",
+      path_glob: "src/auth/**",
+      scope: "write",
+      expires_at: "00:30:00",
+      status: "active",
+    },
   },
   {
     id: "frontend-b",
@@ -34,6 +51,14 @@ export const agents: Agent[] = [
     recentTask: "实现权限受控的路由守卫组件",
     description:
       "聚焦交互层与组件实现，能根据后端权限契约快速落地受控 UI，注重细节与一致性。本次任务中主要承担前端权限态联调。",
+    runtime: {
+      agent_id: "frontend-b",
+      role_id: "frontend_engineer",
+      driver_id: "claude-code",
+      driver_name: "Claude Code",
+      last_heartbeat: "—",
+    },
+    capabilityTags: ["react", "typescript", "state_mgmt", "a11y", "design_system"],
   },
   {
     id: "test-agent",
@@ -51,6 +76,14 @@ export const agents: Agent[] = [
     recentTask: "为支付回调补充 23 个边界用例",
     description:
       "负责为产出代码补齐测试覆盖，擅长识别权限绕过、未授权访问等高风险路径，并生成可读性强的测试报告。",
+    runtime: {
+      agent_id: "test-agent",
+      role_id: "test_engineer",
+      driver_id: "claude-code",
+      driver_name: "Claude Code",
+      last_heartbeat: "—",
+    },
+    capabilityTags: ["unit_test", "integration_test", "coverage", "edge_cases", "vitest"],
   },
   {
     id: "security-agent",
@@ -68,6 +101,14 @@ export const agents: Agent[] = [
     recentTask: "审计后台管理接口的越权风险",
     description:
       "在交付前进行安全门禁审查，重点检查 Admin bypass、组织级越权与未授权访问，给出风险等级与修复建议。",
+    runtime: {
+      agent_id: "security-agent",
+      role_id: "security_auditor",
+      driver_id: "claude-code",
+      driver_name: "Claude Code",
+      last_heartbeat: "—",
+    },
+    capabilityTags: ["threat_model", "authz_check", "dep_audit", "least_privilege", "audit_log"],
   },
 ];
 

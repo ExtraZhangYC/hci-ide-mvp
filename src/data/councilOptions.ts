@@ -1,10 +1,66 @@
-import type { CouncilOption, DiscussionMessage } from "@/types";
+import type { CouncilOption, CouncilVerdict, DiscussionMessage } from "@/types";
 
 export const councilContext = {
   title: "权限策略冲突需要裁决",
   description:
     "系统检测到当前项目存在两种权限策略：Role-Based Access Control 与 Feature Flag Based Permission。本次需求需要用户选择采用的策略。",
+  /** N13 Gate=defer 后进入的 Council，decision_mode（advisory/delegated/human_gate） */
+  decisionMode: "delegated_decision" as const,
+  councilId: "COUNCIL-7741",
 };
+
+/** N14 CouncilDecision.evidence_refs · 证据引用 */
+export const evidenceRefs: string[] = [
+  "artifact://review/security-audit-017",
+  "artifact://test_log/permission-suite",
+  "artifact://diff/rbac-vs-flag",
+  "artifact://context/role-permission-model",
+];
+
+/** N14 CouncilDecision.risk_signals · 风险信号 */
+export const riskSignals: string[] = [
+  "Admin bypass 越权面可能扩大",
+  "Feature Flag 组合爆炸，难以穷举测试",
+  "权限语义分散会增加安全审计成本",
+];
+
+/** N14 verdict 四种取值 → C 侧状态落点（字段清单 §2 决策映射） */
+export const verdictDefs: {
+  id: CouncilVerdict;
+  label: string;
+  desc: string;
+  landing: string;
+  variant: "amber" | "violet" | "red" | "slate";
+}[] = [
+  {
+    id: "select",
+    label: "select · 采纳方案",
+    desc: "采纳选中方案；delegated 模式下生成 MergeAuthorization 继续主流程。",
+    landing: "→ reviewing → MergeAuthorization",
+    variant: "violet",
+  },
+  {
+    id: "needs_human",
+    label: "needs_human · 需人工",
+    desc: "证据不足以自动决策，升级人工补充输入。",
+    landing: "→ waiting_input",
+    variant: "amber",
+  },
+  {
+    id: "request_revision",
+    label: "request_revision · 打回修订",
+    desc: "方案需返工，任务回到阻断态等待重新执行。",
+    landing: "→ blocked",
+    variant: "red",
+  },
+  {
+    id: "reject",
+    label: "reject · 拒绝",
+    desc: "拒绝全部方案，本轮不进入合并。",
+    landing: "→ blocked / reject",
+    variant: "red",
+  },
+];
 
 export const discussion: DiscussionMessage[] = [
   {

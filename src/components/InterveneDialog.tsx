@@ -58,22 +58,25 @@ export function InterveneDialog({
     <Dialog open={open} onClose={onClose} className="max-w-xl">
       <div className="p-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 text-amber-300">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-human/15 text-human shadow-glow-human">
             <Hand className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white">
-              Intervene in Coding Agent
+            <div className="callsign text-[9px] text-human/80">
+              HUMAN OVERRIDE
+            </div>
+            <h2 className="font-display text-base font-semibold text-white">
+              Intervene · N7 Executing
             </h2>
             <p className="text-xs text-slate-500">
-              将补充信息结构化注入到当前 Agent Workflow
+              将补充信息结构化注入到执行中的 Driver / Agent
             </p>
           </div>
         </div>
 
         <div className="mt-5">
-          <label className="mb-1.5 block text-xs font-medium text-slate-400">
-            介入内容
+          <label className="callsign mb-1.5 block text-[9px] text-slate-400">
+            介入内容 · DIRECTIVE
           </label>
           <Textarea
             value={text}
@@ -84,8 +87,8 @@ export function InterveneDialog({
         </div>
 
         <div className="mt-5">
-          <label className="mb-2 block text-xs font-medium text-slate-400">
-            作用范围
+          <label className="callsign mb-2 block text-[9px] text-slate-400">
+            作用范围 · SCOPE
           </label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {scopeOptions.map((opt) => {
@@ -95,22 +98,22 @@ export function InterveneDialog({
                   key={opt.value}
                   onClick={() => setScope(opt.value)}
                   className={cn(
-                    "rounded-lg border p-3 text-left transition-all",
+                    "rounded-md border p-3 text-left transition-all",
                     active
-                      ? "border-amber-400/70 bg-amber-500/10 ring-1 ring-amber-400/40"
-                      : "border-slate-700 bg-ink-900/50 hover:border-slate-600"
+                      ? "border-human/70 bg-human/10 ring-1 ring-human/40"
+                      : "border-line-bright bg-ink-900/50 hover:border-slate-500"
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <span
                       className={cn(
                         "text-sm font-medium",
-                        active ? "text-amber-200" : "text-slate-200"
+                        active ? "text-human-soft" : "text-slate-200"
                       )}
                     >
                       {opt.label}
                     </span>
-                    {active && <Check className="h-4 w-4 text-amber-300" />}
+                    {active && <Check className="h-4 w-4 text-human" />}
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
                     {opt.desc}

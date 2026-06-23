@@ -3,6 +3,7 @@ import { agents, getAgentById } from "@/data/agents";
 import { useDemoStore } from "@/store/useDemoStore";
 import { AgentCard } from "@/components/AgentCard";
 import { AgentDetailPanel } from "@/components/AgentDetailPanel";
+import { SidePanel } from "@/components/SidePanel";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +12,9 @@ export function AgentBoard() {
   const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
   const selectAgent = useDemoStore((s) => s.selectAgent);
   const assignAgent = useDemoStore((s) => s.assignAgent);
+  const teamCustomizationEnabled = useDemoStore((s) => s.teamCustomizationEnabled);
+  const enableTeamCustomization = useDemoStore((s) => s.enableTeamCustomization);
+  const resetTeamToRecommended = useDemoStore((s) => s.resetTeamToRecommended);
   const setPage = useDemoStore((s) => s.setPage);
 
   const selectedAgent = selectedAgentId
@@ -19,17 +23,33 @@ export function AgentBoard() {
   const teamReady = assignedAgentIds.length >= 3;
 
   return (
-    <div className="grid h-full grid-cols-[1fr_360px] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Left: header + grid */}
-      <div className="flex min-w-0 flex-col overflow-hidden">
-        <header className="flex items-end justify-between border-b border-slate-800/80 px-6 py-5">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-end justify-between border-b border-line px-6 py-5">
           <div>
-            <h1 className="text-xl font-semibold text-white">Agent Board</h1>
-            <p className="text-sm text-slate-500">
+            <div className="callsign mb-1 text-[10px] text-command-soft">
+              // 01 · 组队
+            </div>
+            <h1 className="font-display text-xl font-semibold tracking-tight text-white">
+              Agent Board
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-500">
               Persistent AI employees for project delivery · 组建你的 AI 工程团队
             </p>
           </div>
-          <TeamSummary count={assignedAgentIds.length} ready={teamReady} />
+          <div className="flex items-center gap-3">
+            <TeamSummary count={assignedAgentIds.length} ready={teamReady} />
+            {teamCustomizationEnabled ? (
+              <Button variant="secondary" size="sm" onClick={resetTeamToRecommended}>
+                恢复推荐团队
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={enableTeamCustomization}>
+                自定义团队
+              </Button>
+            )}
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -42,25 +62,26 @@ export function AgentBoard() {
                 assigned={assignedAgentIds.includes(agent.id)}
                 onSelect={() => selectAgent(agent.id)}
                 onAssign={() => assignAgent(agent.id)}
+                showAssign={teamCustomizationEnabled}
               />
             ))}
           </div>
 
           {/* Project Team Summary */}
-          <div className="mt-6 rounded-xl border border-slate-800/80 bg-ink-850/60 p-5">
+          <div className="mt-6 rounded-lg border border-line bg-ink-850/60 p-5">
             <div className="mb-3 flex items-center gap-2">
-              <Users2 className="h-4 w-4 text-blue-400" />
-              <h2 className="text-sm font-semibold text-slate-100">
+              <Users2 className="h-4 w-4 text-command-soft" />
+              <h2 className="font-display text-sm font-semibold text-slate-100">
                 Project Team Summary
               </h2>
               <span className="ml-2 text-xs text-slate-500">
-                至少加入 3 名 Agent 即可开始任务
+                系统已默认推荐团队（可点击右上角“自定义团队”调整）
               </span>
             </div>
 
             {assignedAgentIds.length === 0 ? (
               <p className="text-sm text-slate-500">
-                尚未加入任何 Agent。点击卡片上的 “Assign to Project” 组建团队。
+                当前团队为空。建议保持至少 3 名 Agent。
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -96,15 +117,23 @@ export function AgentBoard() {
       </div>
 
       {/* Right: detail panel */}
-      <aside className="min-h-0 border-l border-slate-800/80 bg-ink-900/40">
+      <SidePanel
+        side="right"
+        title="Agent 详情 · Detail"
+        defaultWidth={360}
+        minWidth={300}
+        maxWidth={560}
+        storageKey="agent-detail"
+      >
         <AgentDetailPanel
           agent={selectedAgent}
           assigned={
             selectedAgent ? assignedAgentIds.includes(selectedAgent.id) : false
           }
           onAssign={() => selectedAgent && assignAgent(selectedAgent.id)}
+          showAssign={teamCustomizationEnabled}
         />
-      </aside>
+      </SidePanel>
     </div>
   );
 }
@@ -113,27 +142,27 @@ function TeamSummary({ count, ready }: { count: number; ready: boolean }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl border px-4 py-2.5",
+        "flex items-center gap-3 rounded-md border px-4 py-2.5",
         ready
           ? "border-emerald-500/40 bg-emerald-600/10"
-          : "border-slate-700 bg-ink-850/60"
+          : "border-line-bright bg-ink-850/60"
       )}
     >
       <div className="text-right">
-        <div className="text-[11px] text-slate-500">已组建团队</div>
+        <div className="callsign text-[9px] text-slate-500">CREW</div>
         <div
           className={cn(
-            "text-lg font-bold leading-none",
+            "font-mono text-lg font-bold leading-none tabular",
             ready ? "text-emerald-300" : "text-slate-200"
           )}
         >
-          {count}
-          <span className="text-xs font-normal text-slate-500"> / 4</span>
+          {String(count).padStart(2, "0")}
+          <span className="text-xs font-normal text-slate-500"> / 04</span>
         </div>
       </div>
       <div
         className={cn(
-          "rounded-lg px-2 py-1 text-[11px] font-medium",
+          "callsign rounded px-2 py-1 text-[9px]",
           ready ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-700/50 text-slate-400"
         )}
       >
