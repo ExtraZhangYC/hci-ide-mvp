@@ -19,9 +19,11 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { WorkflowCanvas } from "@/components/WorkflowCanvas";
+import { ExecutionTimeline } from "@/components/ExecutionTimeline";
 import { NodeInspector } from "@/components/NodeInspector";
 import { InterveneDialog } from "@/components/InterveneDialog";
 import { DeliveryReport } from "@/components/DeliveryReport";
+import { SidePanel } from "@/components/SidePanel";
 import { taskUnderstanding } from "@/data/deliveryReport";
 import type { DemoStage } from "@/types";
 
@@ -51,6 +53,9 @@ export function TaskBoard() {
   const nodes = useDemoStore((s) => s.nodes);
   const activeStepIndex = useDemoStore((s) => s.activeStepIndex);
   const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
+  const activeTaskId = useDemoStore((s) => s.activeTaskId);
+  const tasks = useDemoStore((s) => s.tasks);
+  const activeTask = tasks.find((t) => t.id === activeTaskId);
 
   const [interveneOpen, setInterveneOpen] = useState(false);
 
@@ -63,34 +68,40 @@ export function TaskBoard() {
   const showRecommend =
     stage === "analyzing" || stage === "workflow_recommended";
   const showExecuteControls = stage === "executing";
-  const showIntervene = activeNode?.id === "work";
+  // 用 code 判断（并行执行段节点 id 带 -be/-te 后缀，code 仍为 N7）
+  const showIntervene = activeNode?.code === "N7";
   const showCouncil =
-    activeNode?.id === "human-gate" || activeNode?.id === "council";
+    activeNode?.code === "N13" || activeNode?.code === "N14";
   const showDelivered = stage === "delivery";
 
   const hasWorkflow = stage !== "idle" && stage !== "team_configured" && stage !== "analyzing";
 
   return (
-    <div className="grid h-full grid-cols-[1fr_400px] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Left column */}
-      <div className="flex min-w-0 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Command Bar */}
-        <div className="border-b border-slate-800/80 px-5 py-4">
-          <div className="mb-2 flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-white">Task Board</h1>
+        <div className="border-b border-line px-5 py-4">
+          <div className="mb-2 flex items-center gap-3">
+            <div className="callsign text-[10px] text-command-soft">
+              // 02 · 执行
+            </div>
+            <h1 className="font-display text-lg font-semibold tracking-tight text-white">
+              {activeTask?.title ?? "Task Board"}
+            </h1>
             <Badge variant={stageBadge[stage].variant}>
               {stageBadge[stage].label}
             </Badge>
             {assignedAgentIds.length < 3 && (
-              <span className="text-xs text-amber-400/80">
-                建议先在 Agent Board 组建至少 3 名 Agent
+              <span className="text-xs text-human/80">
+                当前团队人数不足（建议至少 3 名）。可前往 Agent Board → 自定义团队
               </span>
             )}
           </div>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-[11px] text-slate-500">
-                任务描述
+              <label className="callsign mb-1 block text-[9px] text-slate-500">
+                任务描述 · DIRECTIVE
               </label>
               <Textarea
                 value={taskText}
@@ -124,10 +135,13 @@ export function TaskBoard() {
           )}
         </div>
 
+        {/* Execution timeline */}
+        <ExecutionTimeline />
+
         {/* Demo Controls */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-800/80 bg-ink-900/60 px-5 py-3">
-          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            Demo Controls
+        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-ink-900/60 px-5 py-3">
+          <span className="callsign mr-1 text-[9px] text-slate-500">
+            ▸ DEMO CONTROLS
           </span>
 
           {showExecuteControls && (
@@ -183,7 +197,14 @@ export function TaskBoard() {
       </div>
 
       {/* Right column */}
-      <aside className="min-h-0 border-l border-slate-800/80 bg-ink-900/40">
+      <SidePanel
+        side="right"
+        title="详情面板 · Inspector"
+        defaultWidth={400}
+        minWidth={300}
+        maxWidth={620}
+        storageKey="task-inspector"
+      >
         {stage === "delivery" ? (
           <DeliveryReport />
         ) : stage === "analyzing" || stage === "workflow_recommended" ? (
@@ -193,7 +214,7 @@ export function TaskBoard() {
         ) : (
           <NodeInspector />
         )}
-      </aside>
+      </SidePanel>
 
       <InterveneDialog
         open={interveneOpen}
@@ -211,11 +232,11 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
       </div>
       <div className="text-sm text-slate-400">
         {stage === "analyzing"
-          ? "需求分析完成，点击 “Use Recommended Workflow” 生成泳道图"
+          ? "需求分析完成，点击 “Use Recommended Workflow” 开始执行并逐步生成泳道图"
           : "输入任务并点击 “Start Task” 开始"}
       </div>
       <div className="text-xs text-slate-600">
-        泳道图将展示 6 条 Lane × 10 个节点的多 Agent 执行流程
+        执行过程将沿 7 条责任方 Lane 动态生成 N0–N18 全链路节点
       </div>
     </div>
   );

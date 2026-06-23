@@ -3,3 +3,13 @@ dist
 .node
 *.local
 .DS_Store
+.claude
+design-comparison
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Stray archives
+*.zip
+
+api/
