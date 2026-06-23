@@ -1,0 +1,7 @@
+# 改到这些路径会自动请对应负责人 review
+# @ 后面换成真实 GitHub 账号
+
+* @fangz-cs
+
+# 契约 / 规格相关（与 api 字段清单、流程图对齐）
+/api/ @fangz-cs
