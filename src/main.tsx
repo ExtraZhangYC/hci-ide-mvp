@@ -1,13 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { UpdateBanner } from '@/components/UpdateBanner';
+import { UpdateDialog } from '@/components/UpdateDialog';
 import './index.css';
 import '@xyflow/react/dist/style.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-    <UpdateBanner />
+    <UpdateDialog />
   </StrictMode>,
 );
