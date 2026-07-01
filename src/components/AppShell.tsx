@@ -1,19 +1,19 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   Users,
-  Network,
   Scale,
   RotateCcw,
   CircleDot,
   Boxes,
-  ChevronDown,
   ChevronRight,
   ChevronLeft,
+  LayoutGrid,
 } from 'lucide-react';
 import { useDemoStore } from '@/store/useDemoStore';
 import type { DemoStage, PageKey } from '@/types';
 import { cn } from '@/lib/utils';
 import { useResizablePane } from '@/lib/useResizablePane';
+import { ProjectTree } from '@/components/ProjectTree';
 
 const otherNavItems: { key: PageKey; label: string; icon: typeof Users }[] = [
   { key: 'agents', label: 'Agent Board', icon: Users },
@@ -45,17 +45,6 @@ const stageColors: Record<DemoStage, string> = {
 // stages where the human holds the controls — the LIVE thread glows warm
 const humanStages: DemoStage[] = ['intervention', 'council'];
 
-const taskStageShort: Record<DemoStage, string> = {
-  idle: '待开始',
-  team_configured: '就绪',
-  analyzing: '分析中',
-  workflow_recommended: '已推荐',
-  executing: '执行中',
-  intervention: '介入',
-  council: '议会',
-  delivery: '已交付',
-};
-
 export function AppShell({ children }: { children: ReactNode }) {
   const currentPage = useDemoStore((s) => s.currentPage);
   const setPage = useDemoStore((s) => s.setPage);
@@ -66,9 +55,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const assignedAgentIds = useDemoStore((s) => s.assignedAgentIds);
   const tasks = useDemoStore((s) => s.tasks);
   const activeTaskId = useDemoStore((s) => s.activeTaskId);
-  const selectTask = useDemoStore((s) => s.selectTask);
+  const closeProject = useDemoStore((s) => s.closeProject);
 
-  const [taskBoardExpanded, setTaskBoardExpanded] = useState(true);
   const {
     size: navWidth,
     collapsed: navCollapsed,
@@ -86,7 +74,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const activeNode = activeStepIndex >= 0 ? nodes[activeStepIndex] : null;
   const humanLive = humanStages.includes(stage);
   const activeTask = tasks.find((t) => t.id === activeTaskId);
-  const isTaskPage = currentPage === 'tasks';
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-ink-950 text-slate-200">
@@ -134,127 +121,32 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav
           className={cn('flex-1 space-y-1 overflow-y-auto py-4', navCollapsed ? 'px-2' : 'px-3')}
         >
-          {!navCollapsed && (
-            <div className="callsign px-2 pb-2 text-[9px] text-slate-600">// 工作台</div>
-          )}
+          <ProjectTree collapsed={navCollapsed} />
 
-          {/* Agent Board */}
-          {otherNavItems
-            .filter((item) => item.key === 'agents')
-            .map((item) => {
-              const Icon = item.icon;
-              const active = currentPage === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setPage(item.key)}
-                  title={navCollapsed ? item.label : undefined}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors',
-                    navCollapsed ? 'justify-center px-0' : 'px-3',
-                    active
-                      ? 'bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30'
-                      : 'text-slate-400 hover:bg-ink-700 hover:text-slate-100',
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!navCollapsed && item.label}
-                </button>
-              );
-            })}
+          {!navCollapsed && <div className="my-3 h-px bg-line" />}
 
-          {/* Task Board — expandable */}
-          <div>
-            <div className="flex items-center">
+          {/* 全局入口 */}
+          {otherNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = currentPage === item.key;
+            return (
               <button
-                onClick={() => setPage('tasks')}
-                title={navCollapsed ? 'Task Board' : undefined}
+                key={item.key}
+                onClick={() => setPage(item.key)}
+                title={navCollapsed ? item.label : undefined}
                 className={cn(
-                  'flex flex-1 items-center gap-3 rounded-lg py-2 text-sm transition-colors',
+                  'flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors',
                   navCollapsed ? 'justify-center px-0' : 'px-3',
-                  isTaskPage
+                  active
                     ? 'bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30'
                     : 'text-slate-400 hover:bg-ink-700 hover:text-slate-100',
                 )}
               >
-                <Network className="h-4 w-4 shrink-0" />
-                {!navCollapsed && 'Task Board'}
+                <Icon className="h-4 w-4 shrink-0" />
+                {!navCollapsed && item.label}
               </button>
-              {!navCollapsed && (
-                <button
-                  onClick={() => setTaskBoardExpanded((v) => !v)}
-                  className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-ink-700 hover:text-slate-300"
-                  aria-label={taskBoardExpanded ? '收起任务列表' : '展开任务列表'}
-                >
-                  {taskBoardExpanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              )}
-            </div>
-
-            {!navCollapsed && taskBoardExpanded && (
-              <div className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-800/80 pl-2">
-                {tasks.map((task) => {
-                  const selected = isTaskPage && task.id === activeTaskId;
-                  const hasWorkflow =
-                    task.stage !== 'idle' &&
-                    task.stage !== 'team_configured' &&
-                    task.stage !== 'analyzing';
-                  return (
-                    <button
-                      key={task.id}
-                      onClick={() => selectTask(task.id)}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-                        selected
-                          ? 'bg-blue-600/20 text-blue-100'
-                          : 'text-slate-400 hover:bg-ink-700 hover:text-slate-200',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'h-1.5 w-1.5 shrink-0 rounded-full',
-                          hasWorkflow ? 'bg-blue-400' : 'bg-slate-600',
-                        )}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                      <span className={cn('shrink-0 text-[10px]', stageColors[task.stage])}>
-                        {taskStageShort[task.stage]}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Council Board */}
-          {otherNavItems
-            .filter((item) => item.key === 'council')
-            .map((item) => {
-              const Icon = item.icon;
-              const active = currentPage === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setPage(item.key)}
-                  title={navCollapsed ? item.label : undefined}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors',
-                    navCollapsed ? 'justify-center px-0' : 'px-3',
-                    active
-                      ? 'bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30'
-                      : 'text-slate-400 hover:bg-ink-700 hover:text-slate-100',
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!navCollapsed && item.label}
-                </button>
-              );
-            })}
+            );
+          })}
         </nav>
 
         <div className="border-t border-line p-3">
@@ -266,6 +158,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </div>
           )}
+          <button
+            onClick={closeProject}
+            title={navCollapsed ? '返回启动页' : undefined}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-md py-2 text-sm text-slate-400 transition-colors hover:bg-ink-700 hover:text-command-soft',
+              navCollapsed ? 'justify-center px-0' : 'px-3',
+            )}
+          >
+            <LayoutGrid className="h-4 w-4 shrink-0" />
+            {!navCollapsed && '返回启动页'}
+          </button>
           <button
             onClick={resetDemo}
             title={navCollapsed ? 'Reset Demo' : undefined}
