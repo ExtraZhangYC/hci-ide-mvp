@@ -1,24 +1,20 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
-  Users,
-  Scale,
   RotateCcw,
   CircleDot,
   Boxes,
   ChevronRight,
   ChevronLeft,
   LayoutGrid,
+  Settings,
 } from 'lucide-react';
 import { useDemoStore } from '@/store/useDemoStore';
-import type { DemoStage, PageKey } from '@/types';
+import type { DemoStage } from '@/types';
 import { cn } from '@/lib/utils';
 import { useResizablePane } from '@/lib/useResizablePane';
 import { ProjectTree } from '@/components/ProjectTree';
-
-const otherNavItems: { key: PageKey; label: string; icon: typeof Users }[] = [
-  { key: 'agents', label: 'Agent Board', icon: Users },
-  { key: 'council', label: 'Council Board', icon: Scale },
-];
+import { SettingsDialog } from '@/components/SettingsDialog';
+import { APP_VERSION } from '@/lib/version';
 
 const stageLabels: Record<DemoStage, string> = {
   idle: '待组队',
@@ -46,8 +42,6 @@ const stageColors: Record<DemoStage, string> = {
 const humanStages: DemoStage[] = ['intervention', 'council'];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const currentPage = useDemoStore((s) => s.currentPage);
-  const setPage = useDemoStore((s) => s.setPage);
   const resetDemo = useDemoStore((s) => s.resetDemo);
   const stage = useDemoStore((s) => s.stage);
   const nodes = useDemoStore((s) => s.nodes);
@@ -74,6 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const activeNode = activeStepIndex >= 0 ? nodes[activeStepIndex] : null;
   const humanLive = humanStages.includes(stage);
   const activeTask = tasks.find((t) => t.id === activeTaskId);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-ink-950 text-slate-200">
@@ -122,31 +117,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           className={cn('flex-1 space-y-1 overflow-y-auto py-4', navCollapsed ? 'px-2' : 'px-3')}
         >
           <ProjectTree collapsed={navCollapsed} />
-
-          {!navCollapsed && <div className="my-3 h-px bg-line" />}
-
-          {/* 全局入口 */}
-          {otherNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = currentPage === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setPage(item.key)}
-                title={navCollapsed ? item.label : undefined}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-lg py-2 text-sm transition-colors',
-                  navCollapsed ? 'justify-center px-0' : 'px-3',
-                  active
-                    ? 'bg-blue-600/15 text-blue-200 ring-1 ring-blue-500/30'
-                    : 'text-slate-400 hover:bg-ink-700 hover:text-slate-100',
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!navCollapsed && item.label}
-              </button>
-            );
-          })}
         </nav>
 
         <div className="border-t border-line p-3">
@@ -158,6 +128,22 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </div>
           )}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title={navCollapsed ? `设置 · v${APP_VERSION}` : undefined}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-md py-2 text-sm text-slate-400 transition-colors hover:bg-ink-700 hover:text-command-soft',
+              navCollapsed ? 'justify-center px-0' : 'px-3',
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            {!navCollapsed && (
+              <span className="flex flex-1 items-center justify-between">
+                设置
+                <span className="font-mono text-[10px] text-slate-600">v{APP_VERSION}</span>
+              </span>
+            )}
+          </button>
           <button
             onClick={closeProject}
             title={navCollapsed ? '返回启动页' : undefined}
@@ -234,6 +220,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
         </footer>
       </div>
+
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

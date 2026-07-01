@@ -26,7 +26,7 @@ import { InterveneDialog } from '@/components/InterveneDialog';
 import { NewRequirementDialog } from '@/components/NewRequirementDialog';
 import { DeliveryReport } from '@/components/DeliveryReport';
 import { SidePanel } from '@/components/SidePanel';
-import { taskUnderstanding } from '@/data/deliveryReport';
+import { deriveScenario } from '@/data/scenario';
 import type { DemoStage } from '@/types';
 
 const stageBadge: Record<
@@ -259,37 +259,39 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
 function TaskUnderstandingPanel() {
   const useRecommendedWorkflow = useDemoStore((s) => s.useRecommendedWorkflow);
   const stage = useDemoStore((s) => s.stage);
+  const taskText = useDemoStore((s) => s.taskText);
+  const understanding = deriveScenario(taskText).understanding;
 
   const rows = [
     {
       icon: Target,
       title: '需求目标',
       tone: 'text-blue-300',
-      content: taskUnderstanding.goal,
+      content: understanding.goal,
     },
     {
       icon: FolderTree,
       title: '涉及模块',
       tone: 'text-cyan-300',
-      content: taskUnderstanding.modules.join('、'),
+      content: understanding.modules.join('、'),
     },
     {
       icon: FlaskConical,
       title: '测试目录',
       tone: 'text-emerald-300',
-      content: taskUnderstanding.testDir,
+      content: understanding.testDir,
     },
     {
       icon: ShieldAlert,
       title: '潜在风险',
       tone: 'text-rose-300',
-      content: taskUnderstanding.risks.join('、'),
+      content: understanding.risks.join('、'),
     },
     {
       icon: Sparkles,
       title: '推荐 Workflow',
       tone: 'text-violet-300',
-      content: taskUnderstanding.workflow,
+      content: understanding.workflow,
     },
   ];
 

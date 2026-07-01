@@ -1,3 +1,13 @@
+// 与后端契约镜像对齐：UI 直接复用契约里"完全一致"的枚举，
+// 让后端契约漂移在编译期咬住前端。刻意换了词表的状态机（TaskStatusCore /
+// CouncilVerdict）不在此直接替换，改由 src/api/map.ts 的 Record 桥接映射兜住。
+import type {
+  AgentRuntimeStatus,
+  GateDecision as ContractGateDecision,
+  LeaseScope,
+  LeaseStatus,
+} from '@/api/types';
+
 export type PageKey = 'agents' | 'tasks' | 'council';
 
 /** 文件树节点：有 children 即目录，无则为文件 */
@@ -28,6 +38,8 @@ export type DemoTask = {
   projectId: string;
   title: string;
   taskText: string;
+  /** 该任务绑定的 Agent 团队（按需求推荐，随任务走，可自定义） */
+  assignedAgentIds: string[];
   stage: DemoStage;
   analysisReady: boolean;
   nodes: WorkflowNodeData[];
@@ -50,15 +62,19 @@ export type DemoStage =
   | 'council'
   | 'delivery';
 
-export type AgentStatus = 'idle' | 'working' | 'waiting' | 'reviewing' | 'done';
+/** 与契约镜像 `AgentRuntimeState.status` 同源（方向 B）。 */
+export type AgentStatus = AgentRuntimeStatus;
 
-/** N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease） */
+/**
+ * N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease）。
+ * scope/status 直接采用契约镜像的 `LeaseScope`/`LeaseStatus`（对齐 BCD core/lease.ts）。
+ */
 export type FileLease = {
   lease_id: string;
   path_glob: string;
-  scope: 'read' | 'write';
+  scope: LeaseScope;
   expires_at: string;
-  status: string;
+  status: LeaseStatus;
 };
 
 /** N4 AgentRecord + N6 Driver Session 的运行态身份（字段清单 N4.agent / N6） */
@@ -115,8 +131,8 @@ export type TaskStatusCore =
   | 'failed'
   | 'cancelled';
 
-/** Gate 四种决策（见 字段清单 N13） */
-export type GateDecision = 'allow' | 'deny' | 'ask' | 'defer';
+/** Gate 四种决策（见 字段清单 N13）—— 直接复用契约镜像的 `GateDecision`（方向 D）。 */
+export type GateDecision = ContractGateDecision;
 
 /** 节点责任方：A=Driver执行 B=角色记忆 C=主链路编排 D=Hook/Gate */
 export type NodeDirection = 'User' | 'A' | 'B' | 'C' | 'D' | 'Merger';

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   DemoStage,
   DemoTask,
+  FileNode,
   InterventionRule,
   LogEntry,
   PageKey,
@@ -11,13 +12,8 @@ import type {
   WorkflowNodeData,
 } from '@/types';
 import { councilConfirmCheckpoint, interventionCheckpoint, nodeLogs } from '@/data/logs';
-import {
-  DEFAULT_TASK_ID,
-  createRequirementTask,
-  freshWorkflowNodes,
-  initialTasks,
-} from '@/data/tasks';
-import { DEFAULT_PROJECT_ID, defaultProjectFiles, initialProjects } from '@/data/projects';
+import { createRequirementTask, freshWorkflowNodes } from '@/data/tasks';
+import { recommendAgents } from '@/data/scenario';
 import {
   MAX_COLUMN,
   NODE_IDS,
@@ -29,9 +25,57 @@ import { captureSnapshot, nextTimelineId, resetTimelineSeq } from '@/lib/snapsho
 
 const DOWNSTREAM_UPDATED_IDS = [NODE_IDS.gate, 'n15-merge-auth', NODE_IDS.complete];
 
+/** 项目存盘文件格式（导出/导入 .json 的载荷）。 */
+export type ProjectExport = {
+  format: 'hci-ide-project';
+  version: number;
+  savedAt: string;
+  project: Project;
+  tasks: DemoTask[];
+};
+
+export const PROJECT_EXPORT_FORMAT = 'hci-ide-project' as const;
+
+/** 唯一 id：Date.now 叠加自增序号，避免同一毫秒内连续创建导致 id 冲突。 */
+let idSeq = 0;
+const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
+
 /** 并行节点 id 形如 `<原id>-be|-te`，剥去后缀以复用同 code 的日志/资源 */
 const stripParallelSuffix = (id: string) => id.replace(/-(be|te)$/, '');
 const getNodeLog = (id: string) => nodeLogs[id] ?? nodeLogs[stripParallelSuffix(id)];
+
+/**
+ * 按路径把一个节点插入文件树（不可变）。
+ * parts 为路径分段；isFolder 决定叶子是文件还是文件夹；中间层缺失会自动建文件夹。
+ * 同名节点已存在则原样返回。
+ */
+function insertFileNode(nodes: FileNode[], parts: string[], isFolder: boolean): FileNode[] {
+  const [head, ...rest] = parts;
+  if (rest.length === 0) {
+    if (nodes.some((n) => n.name === head)) return nodes;
+    const leaf: FileNode = isFolder ? { name: head, children: [] } : { name: head };
+    return [...nodes, leaf];
+  }
+  const idx = nodes.findIndex((n) => n.name === head && n.children);
+  if (idx >= 0) {
+    const copy = [...nodes];
+    copy[idx] = {
+      ...copy[idx],
+      children: insertFileNode(copy[idx].children ?? [], rest, isFolder),
+    };
+    return copy;
+  }
+  return [...nodes, { name: head, children: insertFileNode([], rest, isFolder) }];
+}
+
+/** 按路径从文件树移除一个节点（不可变）。 */
+function removeFileNode(nodes: FileNode[], parts: string[]): FileNode[] {
+  const [head, ...rest] = parts;
+  if (rest.length === 0) return nodes.filter((n) => n.name !== head);
+  return nodes.map((n) =>
+    n.name === head && n.children ? { ...n, children: removeFileNode(n.children, rest) } : n,
+  );
+}
 
 type PartialExecState = {
   stage: DemoStage;
@@ -48,6 +92,7 @@ type PartialExecState = {
 type TaskFields = Pick<
   DemoTask,
   | 'taskText'
+  | 'assignedAgentIds'
   | 'stage'
   | 'analysisReady'
   | 'nodes'
@@ -63,6 +108,7 @@ type TaskFields = Pick<
 function cloneTask(task: DemoTask): DemoTask {
   return {
     ...task,
+    assignedAgentIds: [...(task.assignedAgentIds ?? [])],
     nodes: task.nodes.map((n) => ({
       ...n,
       input: [...n.input],
@@ -79,6 +125,7 @@ function cloneTask(task: DemoTask): DemoTask {
 function extractTaskFields(state: TaskFields): TaskFields {
   return {
     taskText: state.taskText,
+    assignedAgentIds: state.assignedAgentIds,
     stage: state.stage,
     analysisReady: state.analysisReady,
     nodes: state.nodes,
@@ -104,6 +151,7 @@ function taskToState(task: DemoTask): TaskFields {
 function emptyTaskFields(): TaskFields {
   return {
     taskText: '',
+    assignedAgentIds: [],
     stage: 'idle',
     analysisReady: false,
     nodes: freshWorkflowNodes(),
@@ -126,12 +174,6 @@ function pickProjectTask(
   return first
     ? { activeTaskId: first.id, taskState: taskToState(first) }
     : { activeTaskId: null, taskState: emptyTaskFields() };
-}
-
-/** 把当前活动项目的实时团队回写到 projects，便于切走后仍保留 */
-function persistTeam(projects: Project[], projectId: string | null, agentIds: string[]): Project[] {
-  if (!projectId) return projects;
-  return projects.map((p) => (p.id === projectId ? { ...p, agentIds: [...agentIds] } : p));
 }
 
 function buildTimelineEvent(
@@ -162,8 +204,14 @@ type DemoState = PartialExecState &
     createProject: (name: string, description?: string) => void;
     openProject: (projectId: string) => void;
     closeProject: () => void;
+    deleteProject: (projectId: string) => void;
+    exportProject: (projectId: string) => ProjectExport | null;
+    importProject: (data: ProjectExport) => void;
     setPage: (page: PageKey) => void;
     selectTask: (taskId: string) => void;
+    deleteTask: (taskId: string) => void;
+    addFile: (projectId: string, rawName: string) => void;
+    deleteFile: (projectId: string, path: string) => void;
     selectAgent: (agentId: string) => void;
     assignAgent: (agentId: string) => void;
     enableTeamCustomization: () => void;
@@ -185,23 +233,20 @@ type DemoState = PartialExecState &
     restoreCheckpoint: (eventId: string) => void;
   };
 
-const defaultTask = initialTasks.find((t) => t.id === DEFAULT_TASK_ID)!;
-const defaultTaskState = taskToState(defaultTask);
-
-const RECOMMENDED_AGENT_IDS = ['backend-a', 'test-agent', 'security-agent', 'frontend-b'] as const;
-
-const initialState = {
+/** 空白启动态：无项目、无任务，停在启动页由用户新建。 */
+const blankState = () => ({
   currentPage: 'agents' as PageKey,
   selectedAgentId: null as string | null,
-  assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
   teamCustomizationEnabled: false,
   isAutoRunning: false,
-  tasks: initialTasks.map(cloneTask),
-  activeTaskId: DEFAULT_TASK_ID,
-  projects: initialProjects,
+  tasks: [] as DemoTask[],
+  activeTaskId: null as string | null,
+  projects: [] as Project[],
   activeProjectId: null as string | null,
-  ...defaultTaskState,
-};
+  ...emptyTaskFields(),
+});
+
+const initialState = blankState();
 
 let autoRunTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -213,26 +258,25 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     if (!trimmed) return;
     const state = get();
     get().stopAutoRun();
-    // 切走前，回写当前项目的任务与团队
+    // 切走前，回写当前任务的实时状态（团队随任务保存在 task 里）
     const tasks = state.activeTaskId
       ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
       : state.tasks;
-    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
     const project: Project = {
-      id: `proj-${Date.now()}`,
+      id: uid('proj'),
       name: trimmed,
       description: description?.trim() || undefined,
       lastOpened: '刚刚',
       tags: [],
-      files: defaultProjectFiles(),
-      agentIds: [...RECOMMENDED_AGENT_IDS],
+      // 新建项目从空白开始：没有文件、没有任务（团队随任务产生）。
+      files: [],
+      agentIds: [],
     };
     set({
-      projects: [project, ...projects],
+      projects: [project, ...state.projects],
       tasks,
       activeProjectId: project.id,
       currentPage: 'agents',
-      assignedAgentIds: [...project.agentIds],
       teamCustomizationEnabled: false,
       selectedAgentId: null,
       isAutoRunning: false,
@@ -249,17 +293,16 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const tasks = state.activeTaskId
       ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
       : state.tasks;
-    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds).map(
-      (p) => (p.id === projectId ? { ...p, lastOpened: '刚刚' } : p),
+    const projects = state.projects.map((p) =>
+      p.id === projectId ? { ...p, lastOpened: '刚刚' } : p,
     );
-    const fresh = projects.find((p) => p.id === projectId)!;
+    // 团队随任务：加载该项目当前任务，其 taskState 已含 assignedAgentIds。
     const { activeTaskId, taskState } = pickProjectTask(tasks, projectId);
     set({
       projects,
       tasks,
       activeProjectId: projectId,
       currentPage: 'agents',
-      assignedAgentIds: [...fresh.agentIds],
       teamCustomizationEnabled: false,
       selectedAgentId: null,
       isAutoRunning: false,
@@ -274,8 +317,76 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const tasks = state.activeTaskId
       ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
       : state.tasks;
-    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
-    set({ tasks, projects, activeProjectId: null });
+    set({ tasks, activeProjectId: null });
+  },
+
+  deleteProject: (projectId) => {
+    const state = get();
+    const projects = state.projects.filter((p) => p.id !== projectId);
+    const tasks = state.tasks.filter((t) => t.projectId !== projectId);
+    if (projectId === state.activeProjectId) {
+      // 删除的是当前项目：回到空白启动页（其余项目仍在）。
+      get().stopAutoRun();
+      set({
+        projects,
+        tasks,
+        activeProjectId: null,
+        activeTaskId: null,
+        selectedAgentId: null,
+        teamCustomizationEnabled: false,
+        isAutoRunning: false,
+        ...emptyTaskFields(),
+      });
+    } else {
+      set({ projects, tasks });
+    }
+  },
+
+  exportProject: (projectId) => {
+    const state = get();
+    const project = state.projects.find((p) => p.id === projectId);
+    if (!project) return null;
+    // 先回写当前活动任务的实时状态，确保导出的是最新进度
+    const tasks = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    return {
+      format: PROJECT_EXPORT_FORMAT,
+      version: 1,
+      savedAt: new Date().toISOString(),
+      project,
+      tasks: tasks.filter((t) => t.projectId === projectId),
+    };
+  },
+
+  importProject: (data) => {
+    if (!data || data.format !== PROJECT_EXPORT_FORMAT || !data.project) return;
+    const state = get();
+    get().stopAutoRun();
+    const existingTasks = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    // 重映射 id，避免与现有项目/任务冲突
+    const newProjectId = uid('proj');
+    const importedTasks: DemoTask[] = (data.tasks ?? []).map((t) => ({
+      ...cloneTask(t),
+      id: uid('task'),
+      projectId: newProjectId,
+    }));
+    const newProject: Project = { ...data.project, id: newProjectId, lastOpened: '刚刚' };
+    const allTasks = [...existingTasks, ...importedTasks];
+    const { activeTaskId, taskState } = pickProjectTask(allTasks, newProjectId);
+    set({
+      projects: [newProject, ...state.projects],
+      tasks: allTasks,
+      activeProjectId: newProjectId,
+      activeTaskId,
+      currentPage: 'agents',
+      teamCustomizationEnabled: false,
+      selectedAgentId: null,
+      isAutoRunning: false,
+      ...taskState,
+    });
   },
 
   setPage: (page) => set({ currentPage: page }),
@@ -284,12 +395,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   disableTeamCustomization: () => set({ teamCustomizationEnabled: false }),
   resetTeamToRecommended: () =>
     set((state) => {
+      // 恢复到"按当前需求推荐"的团队（不再是写死的固定四人）。
+      const recommended = recommendAgents(state.taskText).ids;
       let stage = state.stage;
       if (stage === 'idle' || stage === 'team_configured') {
-        stage = RECOMMENDED_AGENT_IDS.length >= 3 ? 'team_configured' : 'idle';
+        stage = recommended.length >= 3 ? 'team_configured' : 'idle';
       }
       const patch = {
-        assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
+        assignedAgentIds: [...recommended],
         teamCustomizationEnabled: false,
         stage,
       };
@@ -313,30 +426,71 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const next = synced.find((t) => t.id === taskId);
     if (!next) return;
 
-    // 跨项目选择任务时，一并切换聚焦项目与其团队
-    let projects = state.projects;
+    // 跨项目选择任务时，一并切换聚焦项目（团队随任务，由 taskToState 带出）。
     let activeProjectId = state.activeProjectId;
-    let assignedAgentIds = state.assignedAgentIds;
     let teamCustomizationEnabled = state.teamCustomizationEnabled;
     if (next.projectId !== state.activeProjectId) {
-      projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
-      const proj = projects.find((p) => p.id === next.projectId);
-      assignedAgentIds = proj ? [...proj.agentIds] : state.assignedAgentIds;
       teamCustomizationEnabled = false;
       activeProjectId = next.projectId;
     }
 
     set({
       tasks: synced,
-      projects,
       activeProjectId,
-      assignedAgentIds,
       teamCustomizationEnabled,
       activeTaskId: taskId,
       currentPage: 'tasks',
       ...taskToState(next),
       isAutoRunning: false,
     });
+  },
+
+  deleteTask: (taskId) => {
+    const state = get();
+    const target = state.tasks.find((t) => t.id === taskId);
+    if (!target) return;
+    // 先回写当前活动任务的实时状态，避免误删非活动任务时丢活动任务进度
+    const synced = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const remaining = synced.filter((t) => t.id !== taskId);
+    if (taskId === state.activeTaskId) {
+      // 删掉的是当前任务：切到同项目下另一个任务，或空态。
+      get().stopAutoRun();
+      const { activeTaskId, taskState } = pickProjectTask(remaining, target.projectId);
+      set({
+        tasks: remaining,
+        activeTaskId,
+        currentPage: 'tasks',
+        isAutoRunning: false,
+        ...taskState,
+      });
+    } else {
+      set({ tasks: remaining });
+    }
+  },
+
+  addFile: (projectId, rawName) => {
+    const name = rawName.trim().replace(/^\/+/, '');
+    if (!name) return;
+    const isFolder = name.endsWith('/');
+    const parts = name.replace(/\/+$/, '').split('/').filter(Boolean);
+    if (parts.length === 0) return;
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId ? { ...p, files: insertFileNode(p.files, parts, isFolder) } : p,
+      ),
+    }));
+  },
+
+  deleteFile: (projectId, path) => {
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length === 0) return;
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId ? { ...p, files: removeFileNode(p.files, parts) } : p,
+      ),
+    }));
   },
 
   selectAgent: (agentId) => set({ selectedAgentId: agentId }),
@@ -378,11 +532,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const persisted = state.activeTaskId
       ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
       : state.tasks;
-    const newTask = createRequirementTask(`task-${Date.now()}`, state.activeProjectId, text, title);
+    // N1 Triage：读需求 → 建议角色/组队（C 的职责）。团队随任务创建（createRequirementTask
+    // 内部按需求推荐），由 taskToState 带入实时状态；输入需求后直接进 Task Board 看分析。
+    const newTask = createRequirementTask(uid('task'), state.activeProjectId, text, title);
     set({
       tasks: [...persisted, newTask],
       activeTaskId: newTask.id,
       currentPage: 'tasks',
+      teamCustomizationEnabled: false,
       ...taskToState(newTask),
       isAutoRunning: false,
     });
@@ -566,27 +723,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       autoRunTimer = null;
     }
     resetTimelineSeq();
-    const tasks = initialTasks.map(cloneTask);
-    const projects = initialProjects.map((p) => ({
-      ...p,
-      tags: [...p.tags],
-      agentIds: [...p.agentIds],
-      files: p.files,
-    }));
-    const project = projects.find((p) => p.id === DEFAULT_PROJECT_ID)!;
-    const task = tasks.find((t) => t.id === DEFAULT_TASK_ID)!;
-    set({
-      currentPage: 'agents',
-      selectedAgentId: null,
-      assignedAgentIds: [...project.agentIds],
-      teamCustomizationEnabled: false,
-      isAutoRunning: false,
-      tasks,
-      projects,
-      activeProjectId: DEFAULT_PROJECT_ID,
-      activeTaskId: DEFAULT_TASK_ID,
-      ...taskToState(task),
-    });
+    // 回到空白启动态：清空项目与任务，返回启动页。
+    set(blankState());
   },
 
   selectNode: (nodeId) =>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Boxes, FolderPlus, FolderOpen, FolderGit2, Clock, ArrowRight } from 'lucide-react';
+import { Boxes, FolderPlus, FolderOpen, FolderGit2, Clock, ArrowRight, Upload } from 'lucide-react';
 import { useDemoStore } from '@/store/useDemoStore';
 import { Dialog } from '@/components/ui/Dialog';
 import { NewProjectDialog } from '@/components/NewProjectDialog';
+import { openJsonFile, parseProjectExport } from '@/lib/projectFile';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
 
@@ -13,10 +14,21 @@ import type { Project } from '@/types';
 export function ProjectLauncher() {
   const projects = useDemoStore((s) => s.projects);
   const openProject = useDemoStore((s) => s.openProject);
+  const importProject = useDemoStore((s) => s.importProject);
   const [newOpen, setNewOpen] = useState(false);
   const [openPickerOpen, setOpenPickerOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const recent = projects.slice(0, 4);
+
+  const handleImport = async () => {
+    setImportError(null);
+    const text = await openJsonFile();
+    if (!text) return;
+    const data = parseProjectExport(text);
+    if (data) importProject(data);
+    else setImportError('无法识别的项目文件，请选择由本应用导出的 .hci.json。');
+  };
 
   return (
     <div className="relative flex min-h-screen w-screen items-center justify-center overflow-hidden bg-ink-950 text-slate-200">
@@ -64,6 +76,17 @@ export function ProjectLauncher() {
             accent="slate"
             onClick={() => setOpenPickerOpen(true)}
           />
+        </div>
+
+        {/* 从磁盘文件导入项目 */}
+        <div className="mt-4 flex flex-col items-center">
+          <button
+            onClick={handleImport}
+            className="flex items-center gap-2 rounded-lg border border-line-bright bg-ink-900/50 px-4 py-2 text-sm text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+          >
+            <Upload className="h-4 w-4" /> 从文件打开项目 · Import .hci.json
+          </button>
+          {importError && <p className="mt-2 text-xs text-rose-300">{importError}</p>}
         </div>
 
         {/* 最近打开 */}
