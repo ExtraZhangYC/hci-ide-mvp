@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "HCI IDE · 多 Agent 协作开发桌面工作台",
-  "author": "ExtraZhangYC",
+  "author": "fangz and zhangyc",
   "repository": {
     "type": "git",
     "url": "https://github.com/ExtraZhangYC/hci-ide-mvp.git"
