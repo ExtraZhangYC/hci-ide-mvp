@@ -22,6 +22,8 @@ declare global {
     updates: {
       /** 订阅更新事件；返回取消订阅函数 */
       onEvent: (cb: (event: UpdateEvent) => void) => () => void;
+      /** 拉取当前更新状态（挂载时补齐早于订阅发生的事件） */
+      getState: () => Promise<UpdateEvent | null>;
       /** 用户确认后开始下载更新 */
       download: () => Promise<void>;
       /** 立即重启并安装已下载的更新 */

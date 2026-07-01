@@ -19,7 +19,7 @@ export function UpdateDialog() {
   useEffect(() => {
     const api = window.desktop?.updates;
     if (!api) return;
-    return api.onEvent((e) => {
+    const apply = (e: UpdateEvent) => {
       switch (e.type) {
         case 'available':
           setVersion(e.version);
@@ -40,7 +40,16 @@ export function UpdateDialog() {
         default:
           break;
       }
-    });
+    };
+    const unsubscribe = api.onEvent(apply);
+    // 挂载时补拉一次当前状态：修复启动页因事件早于订阅而不弹窗
+    api
+      .getState()
+      .then((s) => {
+        if (s) apply(s);
+      })
+      .catch(() => {});
+    return unsubscribe;
   }, []);
 
   if (phase === 'idle') return null;

@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("desktop", {
       ipcRenderer.on("update:event", listener);
       return () => ipcRenderer.removeListener("update:event", listener);
     },
+    /** 拉取当前更新状态（挂载时补齐早于订阅发生的事件） */
+    getState: () => ipcRenderer.invoke("update:getState"),
     /** 用户确认后开始下载更新 */
     download: () => ipcRenderer.invoke("update:download"),
     /** 立即重启并安装已下载的更新 */

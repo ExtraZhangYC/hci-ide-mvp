@@ -22,10 +22,13 @@ function setupAutoUpdater(getWindow) {
     }
   };
 
+  // 缓存最近一次更新状态：渲染层挂载时可主动拉取，避免事件早于订阅而丢失
+  let lastState = null;
   const send = (type, payload = {}) => {
+    lastState = { type, ...payload };
     const win = getWindow();
     if (win && !win.isDestroyed()) {
-      win.webContents.send("update:event", { type, ...payload });
+      win.webContents.send("update:event", lastState);
     }
   };
 
@@ -42,6 +45,8 @@ function setupAutoUpdater(getWindow) {
   autoUpdater.on("update-downloaded", (info) => send("downloaded", { version: info?.version }));
   autoUpdater.on("error", (err) => send("error", { message: String(err?.message || err) }));
 
+  // 渲染层挂载时拉取当前状态（修复启动页因事件早于订阅而不弹窗的问题）
+  ipcMain.handle("update:getState", () => lastState);
   // 渲染层主动触发：确认下载 / 立即重启安装 / 手动检查
   ipcMain.handle("update:download", () => autoUpdater.downloadUpdate().catch(() => {}));
   ipcMain.handle("update:restart", () => autoUpdater.quitAndInstall());
