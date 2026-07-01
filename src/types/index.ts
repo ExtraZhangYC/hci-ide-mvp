@@ -1,8 +1,31 @@
-export type PageKey = "agents" | "tasks" | "council";
+export type PageKey = 'agents' | 'tasks' | 'council';
+
+/** 文件树节点：有 children 即目录，无则为文件 */
+export type FileNode = {
+  name: string;
+  children?: FileNode[];
+};
+
+/** 一个工作项目（IDE 启动页选择/新建的单位） */
+export type Project = {
+  id: string;
+  name: string;
+  description?: string;
+  /** 最近打开时间的人读展示串（mock） */
+  lastOpened: string;
+  /** 技术栈 / 标签，用于列表展示 */
+  tags: string[];
+  /** 项目文件树（mock） */
+  files: FileNode[];
+  /** 项目 Agent 团队（引用全局 Agent 池的 id 子集） */
+  agentIds: string[];
+};
 
 /** 单个任务及其泳道图执行状态 */
 export type DemoTask = {
   id: string;
+  /** 所属项目 id */
+  projectId: string;
   title: string;
   taskText: string;
   stage: DemoStage;
@@ -18,22 +41,22 @@ export type DemoTask = {
 };
 
 export type DemoStage =
-  | "idle"
-  | "team_configured"
-  | "analyzing"
-  | "workflow_recommended"
-  | "executing"
-  | "intervention"
-  | "council"
-  | "delivery";
+  | 'idle'
+  | 'team_configured'
+  | 'analyzing'
+  | 'workflow_recommended'
+  | 'executing'
+  | 'intervention'
+  | 'council'
+  | 'delivery';
 
-export type AgentStatus = "idle" | "working" | "waiting" | "reviewing" | "done";
+export type AgentStatus = 'idle' | 'working' | 'waiting' | 'reviewing' | 'done';
 
 /** N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease） */
 export type FileLease = {
   lease_id: string;
   path_glob: string;
-  scope: "read" | "write";
+  scope: 'read' | 'write';
   expires_at: string;
   status: string;
 };
@@ -62,7 +85,7 @@ export type Agent = {
   skills: string[];
   historicalTasks: number;
   failureCount: number;
-  collaboration: "优秀" | "良好" | "一般";
+  collaboration: '优秀' | '良好' | '一般';
   recentTask: string;
   description: string;
   /** N4/N6 运行态身份 */
@@ -73,44 +96,33 @@ export type Agent = {
   fileLease?: FileLease;
 };
 
-export type WorkflowNodeStatus =
-  | "pending"
-  | "active"
-  | "done"
-  | "blocked"
-  | "updated";
+export type WorkflowNodeStatus = 'pending' | 'active' | 'done' | 'blocked' | 'updated';
 
 /** 泳道 = 执行角色分区（User / 调度 / 后端 / 测试 / 安全 / 议会） */
-export type Lane =
-  | "User"
-  | "System"
-  | "Backend"
-  | "Test"
-  | "Security"
-  | "Council";
+export type Lane = 'User' | 'System' | 'Backend' | 'Test' | 'Security' | 'Council';
 
 /** 协调器 Task 主状态机的 11 个核心态（见 需求到处理状态机 §3） */
 export type TaskStatusCore =
-  | "created"
-  | "claimed"
-  | "running"
-  | "waiting_input"
-  | "pending_gate"
-  | "pending_council"
-  | "reviewing"
-  | "blocked"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  | 'created'
+  | 'claimed'
+  | 'running'
+  | 'waiting_input'
+  | 'pending_gate'
+  | 'pending_council'
+  | 'reviewing'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 /** Gate 四种决策（见 字段清单 N13） */
-export type GateDecision = "allow" | "deny" | "ask" | "defer";
+export type GateDecision = 'allow' | 'deny' | 'ask' | 'defer';
 
 /** 节点责任方：A=Driver执行 B=角色记忆 C=主链路编排 D=Hook/Gate */
-export type NodeDirection = "User" | "A" | "B" | "C" | "D" | "Merger";
+export type NodeDirection = 'User' | 'A' | 'B' | 'C' | 'D' | 'Merger';
 
 /** 冻结度：frozen=可直接对接 partial=部分待定 tbd=尚未冻结 reserved=后置 */
-export type FrozenLevel = "frozen" | "partial" | "tbd" | "reserved";
+export type FrozenLevel = 'frozen' | 'partial' | 'tbd' | 'reserved';
 
 /** 字段清单中的一条字段（key + 中文释义/类型说明） */
 export type FieldSpec = { key: string; desc: string };
@@ -152,11 +164,7 @@ export type WorkflowNodeData = {
 };
 
 /** N14 CouncilDecision.verdict（字段清单 N14） */
-export type CouncilVerdict =
-  | "select"
-  | "needs_human"
-  | "request_revision"
-  | "reject";
+export type CouncilVerdict = 'select' | 'needs_human' | 'request_revision' | 'reject';
 
 export type CouncilOption = {
   id: string;
@@ -171,10 +179,10 @@ export type CouncilOption = {
 };
 
 export type InterventionScope =
-  | "current_step"
-  | "current_agent"
-  | "whole_workflow"
-  | "project_rule";
+  | 'current_step'
+  | 'current_agent'
+  | 'whole_workflow'
+  | 'project_rule';
 
 export type InterventionRule = {
   text: string;
@@ -186,10 +194,10 @@ export type DiscussionMessage = {
   agent: string;
   role: string;
   message: string;
-  accent: "backend" | "test" | "security" | "system";
+  accent: 'backend' | 'test' | 'security' | 'system';
 };
 
-export type LogLevel = "info" | "success" | "warning" | "council";
+export type LogLevel = 'info' | 'success' | 'warning' | 'council';
 
 export type LogEntry = {
   time: string;
@@ -222,7 +230,7 @@ export type TimelineEvent = LogEntry & {
   snapshot: DemoSnapshot;
 };
 
-export type NodeExecLogLevel = LogLevel | "debug";
+export type NodeExecLogLevel = LogLevel | 'debug';
 
 /** 单条节点内部执行日志 */
 export type NodeExecLogLine = {
