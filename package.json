@@ -2,7 +2,14 @@
   "name": "hci-ide-mvp",
   "private": true,
   "version": "0.1.0",
+  "description": "HCI IDE · 多 Agent 协作开发桌面工作台",
+  "author": "fangz and zhangyc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ExtraZhangYC/hci-ide-mvp.git"
+  },
   "type": "module",
+  "main": "electron/main.cjs",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20",
@@ -12,6 +19,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:127.0.0.1:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "electron:build:win": "vite build && electron-builder --win",
+    "electron:build:mac": "vite build && electron-builder --mac",
+    "electron:build:dir": "vite build && electron-builder --dir",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "format": "prettier --check .",
@@ -20,10 +32,47 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test",
     "prepare": "husky"
   },
+  "build": {
+    "appId": "com.hciide.app",
+    "productName": "HCI IDE",
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "HCI-IDE-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ExtraZhangYC",
+        "repo": "hci-ide-mvp"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    }
+  },
   "dependencies": {
     "@xyflow/react": "^12.3.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -39,6 +88,9 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.3",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^5.0.0",
@@ -52,7 +104,8 @@
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.15.0",
     "vite": "^5.4.11",
-    "vitest": "^2.1.5"
+    "vitest": "^2.1.5",
+    "wait-on": "^9.0.10"
   },
   "lint-staged": {
     "*.{ts,tsx,js,json,md}": [
@@ -60,6 +113,13 @@
     ],
     "*.{ts,tsx}": [
       "eslint --fix"
+    ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-builder",
+      "esbuild"
     ]
   }
 }

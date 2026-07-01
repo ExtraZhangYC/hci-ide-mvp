@@ -7,6 +7,9 @@ coverage/
 .vite/
 .node
 
+# electron 打包产物
+release/
+
 # env & secrets —— 永远不要进仓
 .env
 .env.*

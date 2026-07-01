@@ -6,12 +6,24 @@
 
 > 界面已对齐后端协作链路规范：Task Board 完整建模 **N0–N18 端到端主链路**与 **11 态协调器状态机**，字段、状态、Gate 决策、事件均取自 `api/` 下的规范文档。
 
+## 下载与安装（桌面版）
+
+HCI IDE 提供 Windows / macOS 桌面安装包，**无需任何开发环境**：
+
+1. 打开 [Releases](https://github.com/ExtraZhangYC/hci-ide-mvp/releases) 页面
+2. 下载对应平台的安装包：
+   - **Windows** → `HCI-IDE-<版本>-win-x64.exe`
+   - **macOS**（Apple Silicon）→ `HCI-IDE-<版本>-mac-arm64.dmg`
+3. 双击安装并启动
+
+> macOS 当前为**未签名**构建。首次打开若提示「无法验证开发者」，在 `系统设置 → 隐私与安全性` 点「仍要打开」，或右键应用图标选「打开」即可。
+
 ## 规范对齐（Single Source of Truth）
 
-| 规范文档 | 用途 |
-|---|---|
-| `api/前端字段清单.json` | 每个节点前端可拿到的 `decided`（已定）/ `tbd`（待定）字段、11 个核心 `TaskStatus`、Gate `allow/deny/ask/defer` → 状态落点、14 个标准事件 |
-| `api/需求到处理-全流程图与状态机.md` | 端到端流程图、Task 主状态机、合并边界、Checkpoint、Council 状态机 |
+| 规范文档                             | 用途                                                                                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `api/前端字段清单.json`              | 每个节点前端可拿到的 `decided`（已定）/ `tbd`（待定）字段、11 个核心 `TaskStatus`、Gate `allow/deny/ask/defer` → 状态落点、14 个标准事件 |
+| `api/需求到处理-全流程图与状态机.md` | 端到端流程图、Task 主状态机、合并边界、Checkpoint、Council 状态机                                                                        |
 
 术语约定：**英文规范术语 + 中文释义**（如 `running · 执行中`、`verdict=select`）。
 当后端字段冻结/变更时，只需同步更新 `src/data/workflow.ts` 各节点的 `decided` / `tbd` / `events`。
@@ -35,16 +47,16 @@ N0 需求到达 → N1 分诊 → N2 创建 Task → N3 创建 Run → N4 认领
 
 原则：**已冻结的字段直接按规范字段名对齐；未冻结的先 mock 并在 UI 上标注**（🟢 已对齐 / `mock · 待冻结`）。
 
-| 方向 | 负责对象（节点） | 冻结度 | 前端策略 | 体现位置 |
-|---|---|---|---|---|
-| **C** | Task / Run / Event / ArtifactRef / Checkpoint / MergeAuthorization（N2/N3/N4/N9/N10/N15/N16/N18） | 🟢 frozen | 直接对齐字段名 | Task Board 节点 + Node Inspector `decided` |
-| **D** | HookResult / GateRequest / GateResult（N11/N12/N13） | 🟢 frozen | 直接对齐；展示 `allow/deny/ask/defer` → 状态落点 | N13 Gate Inspector |
-| **C / Council** | CouncilDecision（N14：`verdict` / `selected_proposal_id` / `evidence_refs` / `risk_signals`） | 🟡 partial | 已定字段对齐；N-way Diff / PPC 可视化后置（mock/暂无） | Council Board |
-| **A** | Driver（N6/N7/N8） | 🟡 partial | `DriverRunResultForCoordination` 入口对齐；`tool_events` / `budget_usage` / 实时进度 mock | N6–N8 Inspector `tbd` |
-| **B** | 角色画像 / 技能 / 经验（N5：`role_profile_id`、`capability_tags`） | 🟡 partial | 已定的 `role_profile_id` / `capability_tags` 对齐 | Agent Board · `capability_tags` |
-| **B** | Agent 画像 schema / 绩效指标（`AgentMetrics`、`persona_ref` / `skill_refs` / `experience_refs`） | 🔴 tbd | **全部先 mock**，标注「mock · 待 B 冻结」 | Agent Board · 核心指标 / 技能 / 协作 / 最近任务 |
-| **User / 前端** | 需求文本 / 分诊结果（N0/N1） | 🔴 tbd | 按「文本 + 可选元信息」mock，留扩展位 | N0/N1 Inspector `tbd` |
-| **B / N4** | AgentRecord 身份（`agent_id` / `role_id` / `driver_id` / `session_id` / `worktree_id` / `last_heartbeat`）+ `file_lease` | 🟢 frozen | 直接对齐字段名 | Agent Board · Identity & Runtime / file_lease |
+| 方向            | 负责对象（节点）                                                                                                         | 冻结度     | 前端策略                                                                                  | 体现位置                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| **C**           | Task / Run / Event / ArtifactRef / Checkpoint / MergeAuthorization（N2/N3/N4/N9/N10/N15/N16/N18）                        | 🟢 frozen  | 直接对齐字段名                                                                            | Task Board 节点 + Node Inspector `decided`      |
+| **D**           | HookResult / GateRequest / GateResult（N11/N12/N13）                                                                     | 🟢 frozen  | 直接对齐；展示 `allow/deny/ask/defer` → 状态落点                                          | N13 Gate Inspector                              |
+| **C / Council** | CouncilDecision（N14：`verdict` / `selected_proposal_id` / `evidence_refs` / `risk_signals`）                            | 🟡 partial | 已定字段对齐；N-way Diff / PPC 可视化后置（mock/暂无）                                    | Council Board                                   |
+| **A**           | Driver（N6/N7/N8）                                                                                                       | 🟡 partial | `DriverRunResultForCoordination` 入口对齐；`tool_events` / `budget_usage` / 实时进度 mock | N6–N8 Inspector `tbd`                           |
+| **B**           | 角色画像 / 技能 / 经验（N5：`role_profile_id`、`capability_tags`）                                                       | 🟡 partial | 已定的 `role_profile_id` / `capability_tags` 对齐                                         | Agent Board · `capability_tags`                 |
+| **B**           | Agent 画像 schema / 绩效指标（`AgentMetrics`、`persona_ref` / `skill_refs` / `experience_refs`）                         | 🔴 tbd     | **全部先 mock**，标注「mock · 待 B 冻结」                                                 | Agent Board · 核心指标 / 技能 / 协作 / 最近任务 |
+| **User / 前端** | 需求文本 / 分诊结果（N0/N1）                                                                                             | 🔴 tbd     | 按「文本 + 可选元信息」mock，留扩展位                                                     | N0/N1 Inspector `tbd`                           |
+| **B / N4**      | AgentRecord 身份（`agent_id` / `role_id` / `driver_id` / `session_id` / `worktree_id` / `last_heartbeat`）+ `file_lease` | 🟢 frozen  | 直接对齐字段名                                                                            | Agent Board · Identity & Runtime / file_lease   |
 
 > Agent Board 上 **🟢 已对齐** 的区块来自字段清单已冻结字段；标 **`mock · 待 B 冻结`** 的区块属于 B 方向尚未冻结的画像/指标域，等 B 正式 Spec 冻结后再对齐到 `AgentMetrics`。
 
@@ -55,6 +67,7 @@ N0 需求到达 → N1 分诊 → N2 创建 Task → N3 创建 Run → N4 认领
 - @xyflow/react（Task Board 泳道图）
 - Zustand（Demo 状态机）
 - lucide-react（图标）
+- Electron（桌面壳，Windows / macOS；渲染层复用同一份 React 应用）
 
 ## 启动方式
 
@@ -69,13 +82,44 @@ npm run dev        # http://localhost:5173/
 
 > 若本机未全局安装 Node，项目可能内置一份本地运行时（`.node/`）。此时可运行 `./start.sh`，或先 `export PATH="$PWD/.node/bin:$PATH"` 再执行上面的命令。
 
+## 桌面开发与发布
+
+Web 版之上封装了 Electron 桌面壳，渲染层复用同一份 React 应用。
+
+开发调试（Vite 热更 + 原生窗口 + DevTools）：
+
+```bash
+pnpm electron:dev
+```
+
+本地打包安装包（产出到 `release/`）：
+
+```bash
+pnpm electron:build:win    # Windows（需在 Windows 上，或配 wine）
+pnpm electron:build:mac    # macOS（需在 Mac 上）
+pnpm electron:build:dir    # 当前系统的免安装解包版，快速自测
+```
+
+> Linux/WSL 下运行需要 GUI 依赖库（`libnspr4 libnss3 libgbm1 libgtk-3-0 …`）。也可直接在原生 Windows / Mac 上开发。
+
+### 发布新版本（自动出安装包）
+
+安装包由 GitHub Actions 自动构建：**推送一个 `v*` 标签**即触发 `.github/workflows/release.yml`，在 Windows / macOS runner 上打包并上传到对应的 GitHub Release。
+
+```bash
+npm version patch          # 0.1.0 → 0.1.1，自动提交并打 v0.1.1 标签
+git push --follow-tags     # 推送提交 + 标签，触发 Release 工作流
+```
+
+跨平台构建全部交给 CI，本地不需要 Mac 也能出 macOS 版；代码签名 / 公证暂未启用（MVP 阶段）。
+
 ## 三个页面
 
-| 页面 | 作用 | 关键交互 |
-|---|---|---|
-| Agent Board | 组建 AI 团队 | 查看 Agent 档案与 **Identity & Runtime（N4/N6 字段：agent_id / role_id / driver_id / session_id / file_lease / capability_tags）**、Assign to Project |
-| Task Board | 可观察、可介入的 N0–N18 执行地图 | Start Task → 需求分析 → 推荐 Workflow → Next Step / Auto Run → 在 N7 Intervene → Node Inspector |
-| Council Board | 基于证据组装 CouncilDecision | 对比三方案、选择 `verdict`、查看 `evidence_refs` / `risk_signals`、提交 select |
+| 页面          | 作用                             | 关键交互                                                                                                                                              |
+| ------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent Board   | 组建 AI 团队                     | 查看 Agent 档案与 **Identity & Runtime（N4/N6 字段：agent_id / role_id / driver_id / session_id / file_lease / capability_tags）**、Assign to Project |
+| Task Board    | 可观察、可介入的 N0–N18 执行地图 | Start Task → 需求分析 → 推荐 Workflow → Next Step / Auto Run → 在 N7 Intervene → Node Inspector                                                       |
+| Council Board | 基于证据组装 CouncilDecision     | 对比三方案、选择 `verdict`、查看 `evidence_refs` / `risk_signals`、提交 select                                                                        |
 
 ## 推荐演示路径
 
