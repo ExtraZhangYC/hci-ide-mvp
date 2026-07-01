@@ -1,0 +1,44 @@
+name: Release
+
+# 推送 v* 标签时触发：在 Windows / macOS runner 上打安装包并发布到 GitHub Releases
+on:
+  push:
+    tags:
+      - 'v*'
+
+# electron-builder 需要写权限来创建 Release 并上传安装包
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 先构建渲染层（dist/），electron-builder 再据此打包
+      - run: pnpm build
+
+      - name: Build & publish (${{ matrix.platform }})
+        run: pnpm exec electron-builder --${{ matrix.platform }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # MVP 阶段不做代码签名 / 公证，避免 CI 去查找签名身份
+          CSC_IDENTITY_AUTO_DISCOVERY: false

@@ -29,5 +29,16 @@ export default ts.config(
     files: ['*.{js,ts}', 'vite.config.ts'],
     languageOptions: { globals: globals.node },
   },
+  // Electron 主/预加载脚本：CommonJS + Node 环境
+  {
+    files: ['electron/**/*.cjs', '**/*.cjs'],
+    languageOptions: {
+      globals: globals.node,
+      sourceType: 'commonjs',
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
   prettier,
 );
