@@ -2,6 +2,7 @@
 // 用 .cjs 后缀，使其在 package.json "type":"module" 下仍按 CommonJS 加载。
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("path");
+const { setupAutoUpdater } = require("./updater.cjs");
 
 const isDev = !app.isPackaged;
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
@@ -62,6 +63,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     createWindow();
+    setupAutoUpdater(() => mainWindow);
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

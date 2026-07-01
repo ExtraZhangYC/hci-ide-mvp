@@ -2,6 +2,15 @@
 export {};
 
 declare global {
+  /** 主进程推送的自动更新事件 */
+  type UpdateEvent =
+    | { type: 'checking' }
+    | { type: 'available'; version?: string }
+    | { type: 'not-available' }
+    | { type: 'progress'; percent: number }
+    | { type: 'downloaded'; version?: string }
+    | { type: 'error'; message: string };
+
   interface DesktopBridge {
     isDesktop: true;
     platform: NodeJS.Platform;
@@ -9,6 +18,14 @@ declare global {
       electron: string;
       chrome: string;
       node: string;
+    };
+    updates: {
+      /** 订阅更新事件；返回取消订阅函数 */
+      onEvent: (cb: (event: UpdateEvent) => void) => () => void;
+      /** 立即重启并安装已下载的更新 */
+      restart: () => Promise<void>;
+      /** 手动触发一次检查 */
+      check: () => Promise<void>;
     };
   }
 
