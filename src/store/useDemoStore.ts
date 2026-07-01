@@ -1,39 +1,37 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import type {
   DemoStage,
   DemoTask,
   InterventionRule,
   LogEntry,
   PageKey,
+  Project,
   TimelineCheckpoint,
   TimelineEvent,
   WorkflowNodeData,
-} from "@/types";
+} from '@/types';
+import { councilConfirmCheckpoint, interventionCheckpoint, nodeLogs } from '@/data/logs';
 import {
-  councilConfirmCheckpoint,
-  interventionCheckpoint,
-  nodeLogs,
-} from "@/data/logs";
-import { DEFAULT_TASK_ID, initialTasks } from "@/data/tasks";
+  DEFAULT_TASK_ID,
+  createRequirementTask,
+  freshWorkflowNodes,
+  initialTasks,
+} from '@/data/tasks';
+import { DEFAULT_PROJECT_ID, defaultProjectFiles, initialProjects } from '@/data/projects';
 import {
   MAX_COLUMN,
   NODE_IDS,
   indicesInColumn,
   primaryIndexInColumn,
   revealedCountThroughColumn,
-} from "@/data/workflow";
-import { captureSnapshot, nextTimelineId, resetTimelineSeq } from "@/lib/snapshot";
+} from '@/data/workflow';
+import { captureSnapshot, nextTimelineId, resetTimelineSeq } from '@/lib/snapshot';
 
-const DOWNSTREAM_UPDATED_IDS = [
-  NODE_IDS.gate,
-  "n15-merge-auth",
-  NODE_IDS.complete,
-];
+const DOWNSTREAM_UPDATED_IDS = [NODE_IDS.gate, 'n15-merge-auth', NODE_IDS.complete];
 
 /** 并行节点 id 形如 `<原id>-be|-te`，剥去后缀以复用同 code 的日志/资源 */
-const stripParallelSuffix = (id: string) => id.replace(/-(be|te)$/, "");
-const getNodeLog = (id: string) =>
-  nodeLogs[id] ?? nodeLogs[stripParallelSuffix(id)];
+const stripParallelSuffix = (id: string) => id.replace(/-(be|te)$/, '');
+const getNodeLog = (id: string) => nodeLogs[id] ?? nodeLogs[stripParallelSuffix(id)];
 
 type PartialExecState = {
   stage: DemoStage;
@@ -49,17 +47,17 @@ type PartialExecState = {
 
 type TaskFields = Pick<
   DemoTask,
-  | "taskText"
-  | "stage"
-  | "analysisReady"
-  | "nodes"
-  | "revealedNodeCount"
-  | "activeStepIndex"
-  | "selectedNodeId"
-  | "interventionRules"
-  | "confirmedCouncilOptionId"
-  | "interventionFeedback"
-  | "timeline"
+  | 'taskText'
+  | 'stage'
+  | 'analysisReady'
+  | 'nodes'
+  | 'revealedNodeCount'
+  | 'activeStepIndex'
+  | 'selectedNodeId'
+  | 'interventionRules'
+  | 'confirmedCouncilOptionId'
+  | 'interventionFeedback'
+  | 'timeline'
 >;
 
 function cloneTask(task: DemoTask): DemoTask {
@@ -94,24 +92,52 @@ function extractTaskFields(state: TaskFields): TaskFields {
   };
 }
 
-function syncTasks(
-  tasks: DemoTask[],
-  activeTaskId: string,
-  fields: TaskFields
-): DemoTask[] {
-  return tasks.map((t) =>
-    t.id === activeTaskId ? { ...t, ...fields } : t
-  );
+function syncTasks(tasks: DemoTask[], activeTaskId: string | null, fields: TaskFields): DemoTask[] {
+  return tasks.map((t) => (t.id === activeTaskId ? { ...t, ...fields } : t));
 }
 
 function taskToState(task: DemoTask): TaskFields {
   return cloneTask(task);
 }
 
+/** 空项目/无任务时的占位任务态（idle） */
+function emptyTaskFields(): TaskFields {
+  return {
+    taskText: '',
+    stage: 'idle',
+    analysisReady: false,
+    nodes: freshWorkflowNodes(),
+    revealedNodeCount: 0,
+    activeStepIndex: -1,
+    selectedNodeId: null,
+    interventionRules: [],
+    confirmedCouncilOptionId: null,
+    interventionFeedback: null,
+    timeline: [],
+  };
+}
+
+/** 选出某项目的当前任务（首个任务，或无任务时的空态） */
+function pickProjectTask(
+  tasks: DemoTask[],
+  projectId: string,
+): { activeTaskId: string | null; taskState: TaskFields } {
+  const first = tasks.find((t) => t.projectId === projectId);
+  return first
+    ? { activeTaskId: first.id, taskState: taskToState(first) }
+    : { activeTaskId: null, taskState: emptyTaskFields() };
+}
+
+/** 把当前活动项目的实时团队回写到 projects，便于切走后仍保留 */
+function persistTeam(projects: Project[], projectId: string | null, agentIds: string[]): Project[] {
+  if (!projectId) return projects;
+  return projects.map((p) => (p.id === projectId ? { ...p, agentIds: [...agentIds] } : p));
+}
+
 function buildTimelineEvent(
   entry: LogEntry,
   exec: PartialExecState,
-  checkpoint?: TimelineCheckpoint
+  checkpoint?: TimelineCheckpoint,
 ): TimelineEvent {
   return {
     id: nextTimelineId(),
@@ -128,8 +154,14 @@ type DemoState = PartialExecState &
     teamCustomizationEnabled: boolean;
     isAutoRunning: boolean;
     tasks: DemoTask[];
-    activeTaskId: string;
+    activeTaskId: string | null;
+    projects: Project[];
+    /** null = 停留在启动页；有值 = 已进入工作区 */
+    activeProjectId: string | null;
 
+    createProject: (name: string, description?: string) => void;
+    openProject: (projectId: string) => void;
+    closeProject: () => void;
     setPage: (page: PageKey) => void;
     selectTask: (taskId: string) => void;
     selectAgent: (agentId: string) => void;
@@ -138,6 +170,7 @@ type DemoState = PartialExecState &
     disableTeamCustomization: () => void;
     resetTeamToRecommended: () => void;
     setTaskText: (text: string) => void;
+    createTask: (rawText: string, title?: string) => void;
     startTask: () => void;
     useRecommendedWorkflow: () => void;
     nextStep: () => void;
@@ -155,21 +188,18 @@ type DemoState = PartialExecState &
 const defaultTask = initialTasks.find((t) => t.id === DEFAULT_TASK_ID)!;
 const defaultTaskState = taskToState(defaultTask);
 
-const RECOMMENDED_AGENT_IDS = [
-  "backend-a",
-  "test-agent",
-  "security-agent",
-  "frontend-b",
-] as const;
+const RECOMMENDED_AGENT_IDS = ['backend-a', 'test-agent', 'security-agent', 'frontend-b'] as const;
 
 const initialState = {
-  currentPage: "agents" as PageKey,
+  currentPage: 'agents' as PageKey,
   selectedAgentId: null as string | null,
   assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
   teamCustomizationEnabled: false,
   isAutoRunning: false,
   tasks: initialTasks.map(cloneTask),
   activeTaskId: DEFAULT_TASK_ID,
+  projects: initialProjects,
+  activeProjectId: null as string | null,
   ...defaultTaskState,
 };
 
@@ -178,6 +208,76 @@ let autoRunTimer: ReturnType<typeof setTimeout> | null = null;
 export const useDemoStore = create<DemoState>((set, get) => ({
   ...initialState,
 
+  createProject: (name, description) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const state = get();
+    get().stopAutoRun();
+    // 切走前，回写当前项目的任务与团队
+    const tasks = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
+    const project: Project = {
+      id: `proj-${Date.now()}`,
+      name: trimmed,
+      description: description?.trim() || undefined,
+      lastOpened: '刚刚',
+      tags: [],
+      files: defaultProjectFiles(),
+      agentIds: [...RECOMMENDED_AGENT_IDS],
+    };
+    set({
+      projects: [project, ...projects],
+      tasks,
+      activeProjectId: project.id,
+      currentPage: 'agents',
+      assignedAgentIds: [...project.agentIds],
+      teamCustomizationEnabled: false,
+      selectedAgentId: null,
+      isAutoRunning: false,
+      activeTaskId: null,
+      ...emptyTaskFields(),
+    });
+  },
+
+  openProject: (projectId) => {
+    const state = get();
+    const project = state.projects.find((p) => p.id === projectId);
+    if (!project) return;
+    get().stopAutoRun();
+    const tasks = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds).map(
+      (p) => (p.id === projectId ? { ...p, lastOpened: '刚刚' } : p),
+    );
+    const fresh = projects.find((p) => p.id === projectId)!;
+    const { activeTaskId, taskState } = pickProjectTask(tasks, projectId);
+    set({
+      projects,
+      tasks,
+      activeProjectId: projectId,
+      currentPage: 'agents',
+      assignedAgentIds: [...fresh.agentIds],
+      teamCustomizationEnabled: false,
+      selectedAgentId: null,
+      isAutoRunning: false,
+      activeTaskId,
+      ...taskState,
+    });
+  },
+
+  closeProject: () => {
+    const state = get();
+    get().stopAutoRun();
+    const tasks = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
+    set({ tasks, projects, activeProjectId: null });
+  },
+
   setPage: (page) => set({ currentPage: page }),
 
   enableTeamCustomization: () => set({ teamCustomizationEnabled: true }),
@@ -185,8 +285,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   resetTeamToRecommended: () =>
     set((state) => {
       let stage = state.stage;
-      if (stage === "idle" || stage === "team_configured") {
-        stage = RECOMMENDED_AGENT_IDS.length >= 3 ? "team_configured" : "idle";
+      if (stage === 'idle' || stage === 'team_configured') {
+        stage = RECOMMENDED_AGENT_IDS.length >= 3 ? 'team_configured' : 'idle';
       }
       const patch = {
         assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
@@ -203,18 +303,37 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   selectTask: (taskId) => {
     const state = get();
     if (taskId === state.activeTaskId) {
-      set({ currentPage: "tasks" });
+      set({ currentPage: 'tasks' });
       return;
     }
     get().stopAutoRun();
-    const taskFields = extractTaskFields(state);
-    const tasks = syncTasks(state.tasks, state.activeTaskId, taskFields);
-    const next = tasks.find((t) => t.id === taskId);
+    const synced = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const next = synced.find((t) => t.id === taskId);
     if (!next) return;
+
+    // 跨项目选择任务时，一并切换聚焦项目与其团队
+    let projects = state.projects;
+    let activeProjectId = state.activeProjectId;
+    let assignedAgentIds = state.assignedAgentIds;
+    let teamCustomizationEnabled = state.teamCustomizationEnabled;
+    if (next.projectId !== state.activeProjectId) {
+      projects = persistTeam(state.projects, state.activeProjectId, state.assignedAgentIds);
+      const proj = projects.find((p) => p.id === next.projectId);
+      assignedAgentIds = proj ? [...proj.agentIds] : state.assignedAgentIds;
+      teamCustomizationEnabled = false;
+      activeProjectId = next.projectId;
+    }
+
     set({
-      tasks,
+      tasks: synced,
+      projects,
+      activeProjectId,
+      assignedAgentIds,
+      teamCustomizationEnabled,
       activeTaskId: taskId,
-      currentPage: "tasks",
+      currentPage: 'tasks',
       ...taskToState(next),
       isAutoRunning: false,
     });
@@ -229,8 +348,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         ? state.assignedAgentIds.filter((id) => id !== agentId)
         : [...state.assignedAgentIds, agentId];
       let stage = state.stage;
-      if (state.stage === "idle" || state.stage === "team_configured") {
-        stage = assignedAgentIds.length >= 3 ? "team_configured" : "idle";
+      if (state.stage === 'idle' || state.stage === 'team_configured') {
+        stage = assignedAgentIds.length >= 3 ? 'team_configured' : 'idle';
       }
       const taskFields = extractTaskFields({ ...state, stage });
       return {
@@ -249,16 +368,36 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       };
     }),
 
+  createTask: (rawText, title) => {
+    const text = rawText.trim();
+    if (!text) return;
+    const state = get();
+    if (!state.activeProjectId) return;
+    get().stopAutoRun();
+    // 先把当前活动任务的实时状态回写，避免切走时丢进度
+    const persisted = state.activeTaskId
+      ? syncTasks(state.tasks, state.activeTaskId, extractTaskFields(state))
+      : state.tasks;
+    const newTask = createRequirementTask(`task-${Date.now()}`, state.activeProjectId, text, title);
+    set({
+      tasks: [...persisted, newTask],
+      activeTaskId: newTask.id,
+      currentPage: 'tasks',
+      ...taskToState(newTask),
+      isAutoRunning: false,
+    });
+  },
+
   startTask: () =>
     set((state) => {
       const taskFields = extractTaskFields({
         ...state,
-        stage: "analyzing",
+        stage: 'analyzing',
         analysisReady: true,
       });
       return {
-        currentPage: "tasks",
-        stage: "analyzing",
+        currentPage: 'tasks',
+        stage: 'analyzing',
         analysisReady: true,
         tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
       };
@@ -266,12 +405,10 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   useRecommendedWorkflow: () =>
     set((state) => {
-      const nodes = state.nodes.map((n, i) =>
-        i === 0 ? { ...n, status: "active" as const } : n
-      );
+      const nodes = state.nodes.map((n, i) => (i === 0 ? { ...n, status: 'active' as const } : n));
       const nodeLog = nodeLogs[nodes[0].id];
       const exec: PartialExecState = {
-        stage: "executing",
+        stage: 'executing',
         currentPage: state.currentPage,
         nodes,
         revealedNodeCount: 1,
@@ -282,14 +419,12 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         interventionFeedback: state.interventionFeedback,
       };
       const { checkpoint, ...entry } = nodeLog ?? {
-        time: "00:01",
-        source: "Orchestrator",
-        text: "Workflow 已启动。",
-        level: "info" as const,
+        time: '00:01',
+        source: 'Orchestrator',
+        text: 'Workflow 已启动。',
+        level: 'info' as const,
       };
-      const timeline = nodeLog
-        ? [buildTimelineEvent(entry, exec, checkpoint)]
-        : [];
+      const timeline = nodeLog ? [buildTimelineEvent(entry, exec, checkpoint)] : [];
       const taskFields = extractTaskFields({
         ...state,
         ...exec,
@@ -304,16 +439,13 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   nextStep: () => {
     const state = get();
-    if (state.stage !== "executing") return;
+    if (state.stage !== 'executing') return;
     const cur = state.activeStepIndex;
     if (cur < 0) return;
     const curCol = state.nodes[cur].column;
 
     // 活跃列为 Council 且尚未裁决 → 进入议会
-    if (
-      state.nodes[cur].id === NODE_IDS.council &&
-      !state.confirmedCouncilOptionId
-    ) {
+    if (state.nodes[cur].id === NODE_IDS.council && !state.confirmedCouncilOptionId) {
       get().goToCouncil();
       return;
     }
@@ -321,13 +453,13 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const nodes = state.nodes.map((n) => ({ ...n }));
     // 当前列整列置 done（并行列两节点一起完成）
     indicesInColumn(nodes, curCol).forEach((i) => {
-      nodes[i] = { ...nodes[i], status: "done" };
+      nodes[i] = { ...nodes[i], status: 'done' };
     });
 
     // 末列：进入交付
     if (curCol >= MAX_COLUMN) {
       const exec: PartialExecState = {
-        stage: "delivery",
+        stage: 'delivery',
         currentPage: state.currentPage,
         nodes,
         revealedNodeCount: nodes.length,
@@ -349,17 +481,17 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     // 推进到下一列：整列置 active（并行列两节点一起点亮）
     const nextCol = curCol + 1;
     indicesInColumn(nodes, nextCol).forEach((i) => {
-      nodes[i] = { ...nodes[i], status: "active" };
+      nodes[i] = { ...nodes[i], status: 'active' };
     });
     const primaryIndex = primaryIndexInColumn(nodes, nextCol);
     const primaryNode = nodes[primaryIndex];
     const nodeLog = getNodeLog(primaryNode.id);
 
-    let stage: DemoStage = "executing";
+    let stage: DemoStage = 'executing';
     let currentPage = state.currentPage;
     if (primaryNode.id === NODE_IDS.council) {
-      stage = "council";
-      currentPage = "council";
+      stage = 'council';
+      currentPage = 'council';
       get().stopAutoRun();
     }
 
@@ -379,9 +511,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       ? [
           ...state.timeline,
           buildTimelineEvent(
-            { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+            {
+              time: nodeLog.time,
+              source: nodeLog.source,
+              text: nodeLog.text,
+              level: nodeLog.level,
+            },
             exec,
-            nodeLog.checkpoint
+            nodeLog.checkpoint,
           ),
         ]
       : state.timeline;
@@ -397,14 +534,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   autoRun: () => {
     const tick = () => {
       const state = get();
-      if (state.stage !== "executing") {
+      if (state.stage !== 'executing') {
         set({ isAutoRunning: false });
         autoRunTimer = null;
         return;
       }
       state.nextStep();
       const after = get();
-      if (after.stage === "executing" && after.isAutoRunning) {
+      if (after.stage === 'executing' && after.isAutoRunning) {
         autoRunTimer = setTimeout(tick, 950);
       } else {
         set({ isAutoRunning: false });
@@ -430,14 +567,23 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     }
     resetTimelineSeq();
     const tasks = initialTasks.map(cloneTask);
+    const projects = initialProjects.map((p) => ({
+      ...p,
+      tags: [...p.tags],
+      agentIds: [...p.agentIds],
+      files: p.files,
+    }));
+    const project = projects.find((p) => p.id === DEFAULT_PROJECT_ID)!;
     const task = tasks.find((t) => t.id === DEFAULT_TASK_ID)!;
     set({
-      currentPage: "agents",
+      currentPage: 'agents',
       selectedAgentId: null,
-      assignedAgentIds: [...RECOMMENDED_AGENT_IDS] as string[],
+      assignedAgentIds: [...project.agentIds],
       teamCustomizationEnabled: false,
       isAutoRunning: false,
       tasks,
+      projects,
+      activeProjectId: DEFAULT_PROJECT_ID,
       activeTaskId: DEFAULT_TASK_ID,
       ...taskToState(task),
     });
@@ -455,18 +601,18 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   addInterventionRule: (rule) =>
     set((state) => {
       const nodes = state.nodes.map((n) => {
-        if (DOWNSTREAM_UPDATED_IDS.includes(n.id) && n.status === "pending") {
-          return { ...n, status: "updated" as const };
+        if (DOWNSTREAM_UPDATED_IDS.includes(n.id) && n.status === 'pending') {
+          return { ...n, status: 'updated' as const };
         }
         return n;
       });
       const feedback =
-        "已识别为业务规则。该规则将同步给 Coding Agent、Test Agent 和 Security Audit Agent。";
+        '已识别为业务规则。该规则将同步给 Coding Agent、Test Agent 和 Security Audit Agent。';
       const log: LogEntry = {
-        time: "00:15",
-        source: "用户介入",
+        time: '00:15',
+        source: '用户介入',
         text: `注入业务规则：${rule.text}`,
-        level: "warning",
+        level: 'warning',
       };
       const exec: PartialExecState = {
         stage: state.stage,
@@ -479,10 +625,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         confirmedCouncilOptionId: state.confirmedCouncilOptionId,
         interventionFeedback: feedback,
       };
-      const timeline = [
-        ...state.timeline,
-        buildTimelineEvent(log, exec, interventionCheckpoint),
-      ];
+      const timeline = [...state.timeline, buildTimelineEvent(log, exec, interventionCheckpoint)];
       const taskFields = extractTaskFields({
         ...state,
         ...exec,
@@ -502,24 +645,24 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const councilCol = state.nodes[councilIdx].column;
     const nodes = state.nodes.map((n) => {
       if (n.column < councilCol) {
-        return n.status === "done" ? n : { ...n, status: "done" as const };
+        return n.status === 'done' ? n : { ...n, status: 'done' as const };
       }
-      if (n.id === NODE_IDS.council) return { ...n, status: "active" as const };
+      if (n.id === NODE_IDS.council) return { ...n, status: 'active' as const };
       return n;
     });
     const nodeLog = nodeLogs[NODE_IDS.council];
     const alreadyHasCouncil = state.timeline.some(
-      (e) => e.source === "Council" && e.text.includes("已就绪")
+      (e) => e.source === 'Council' && e.text.includes('已就绪'),
     );
     const exec: PartialExecState = {
-      stage: "council",
-      currentPage: "council",
+      stage: 'council',
+      currentPage: 'council',
       nodes,
       activeStepIndex: councilIdx,
       selectedNodeId: NODE_IDS.council,
       revealedNodeCount: Math.max(
         state.revealedNodeCount,
-        revealedCountThroughColumn(nodes, councilCol)
+        revealedCountThroughColumn(nodes, councilCol),
       ),
       interventionRules: state.interventionRules,
       confirmedCouncilOptionId: state.confirmedCouncilOptionId,
@@ -531,9 +674,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         : [
             ...state.timeline,
             buildTimelineEvent(
-              { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+              {
+                time: nodeLog.time,
+                source: nodeLog.source,
+                text: nodeLog.text,
+                level: nodeLog.level,
+              },
               exec,
-              nodeLog.checkpoint
+              nodeLog.checkpoint,
             ),
           ];
     const taskFields = extractTaskFields({ ...state, ...exec, timeline });
@@ -551,18 +699,18 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     // 裁决后：议会与中间合并节点(N15–N17)收束为 done，直达 N18 complete
     const nodes = state.nodes.map((n) =>
       n.column < MAX_COLUMN
-        ? { ...n, status: "done" as const }
-        : { ...n, status: "active" as const }
+        ? { ...n, status: 'done' as const }
+        : { ...n, status: 'active' as const },
     );
     const log: LogEntry = {
-      time: "00:28",
-      source: "Council",
-      text: "用户已裁决：采用 Option A · RBAC 策略，回到主流程。",
-      level: "council",
+      time: '00:28',
+      source: 'Council',
+      text: '用户已裁决：采用 Option A · RBAC 策略，回到主流程。',
+      level: 'council',
     };
     const exec: PartialExecState = {
-      stage: "executing",
-      currentPage: "tasks",
+      stage: 'executing',
+      currentPage: 'tasks',
       nodes,
       activeStepIndex: completeIdx,
       selectedNodeId: nodes[completeIdx].id,
@@ -571,10 +719,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       confirmedCouncilOptionId: optionId,
       interventionFeedback: state.interventionFeedback,
     };
-    const timeline = [
-      ...state.timeline,
-      buildTimelineEvent(log, exec, councilConfirmCheckpoint),
-    ];
+    const timeline = [...state.timeline, buildTimelineEvent(log, exec, councilConfirmCheckpoint)];
     const taskFields = extractTaskFields({ ...state, ...exec, timeline });
     set({
       ...exec,
@@ -585,19 +730,17 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   showDelivery: () =>
     set((state) => {
-      const completeIdx = state.nodes.findIndex(
-        (n) => n.id === NODE_IDS.complete
-      );
+      const completeIdx = state.nodes.findIndex((n) => n.id === NODE_IDS.complete);
       const nodes = state.nodes.map((n) =>
-        n.column === MAX_COLUMN ? { ...n, status: "done" as const } : n
+        n.column === MAX_COLUMN ? { ...n, status: 'done' as const } : n,
       );
       const nodeLog = nodeLogs[NODE_IDS.complete];
       const alreadyHasComplete = state.timeline.some(
-        (e) => e.source === "Orchestrator" && e.text.includes("Delivery Report")
+        (e) => e.source === 'Orchestrator' && e.text.includes('Delivery Report'),
       );
       const exec: PartialExecState = {
-        stage: "delivery",
-        currentPage: "tasks",
+        stage: 'delivery',
+        currentPage: 'tasks',
         nodes,
         activeStepIndex: completeIdx,
         selectedNodeId: nodes[completeIdx].id,
@@ -612,9 +755,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
           : [
               ...state.timeline,
               buildTimelineEvent(
-                { time: nodeLog.time, source: nodeLog.source, text: nodeLog.text, level: nodeLog.level },
+                {
+                  time: nodeLog.time,
+                  source: nodeLog.source,
+                  text: nodeLog.text,
+                  level: nodeLog.level,
+                },
                 exec,
-                nodeLog.checkpoint
+                nodeLog.checkpoint,
               ),
             ];
       const taskFields = extractTaskFields({ ...state, ...exec, timeline });

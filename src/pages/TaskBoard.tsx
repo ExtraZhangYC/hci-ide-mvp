@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from 'react';
 import {
   Play,
   Workflow,
@@ -13,32 +13,43 @@ import {
   FlaskConical,
   ShieldAlert,
   Sparkles,
-} from "lucide-react";
-import { useDemoStore } from "@/store/useDemoStore";
-import { Button } from "@/components/ui/Button";
-import { Textarea } from "@/components/ui/Textarea";
-import { Badge } from "@/components/ui/Badge";
-import { WorkflowCanvas } from "@/components/WorkflowCanvas";
-import { ExecutionTimeline } from "@/components/ExecutionTimeline";
-import { NodeInspector } from "@/components/NodeInspector";
-import { InterveneDialog } from "@/components/InterveneDialog";
-import { DeliveryReport } from "@/components/DeliveryReport";
-import { SidePanel } from "@/components/SidePanel";
-import { taskUnderstanding } from "@/data/deliveryReport";
-import type { DemoStage } from "@/types";
+  FilePlus2,
+} from 'lucide-react';
+import { useDemoStore } from '@/store/useDemoStore';
+import { Button } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Textarea';
+import { Badge } from '@/components/ui/Badge';
+import { WorkflowCanvas } from '@/components/WorkflowCanvas';
+import { ExecutionTimeline } from '@/components/ExecutionTimeline';
+import { NodeInspector } from '@/components/NodeInspector';
+import { InterveneDialog } from '@/components/InterveneDialog';
+import { NewRequirementDialog } from '@/components/NewRequirementDialog';
+import { DeliveryReport } from '@/components/DeliveryReport';
+import { SidePanel } from '@/components/SidePanel';
+import { taskUnderstanding } from '@/data/deliveryReport';
+import type { DemoStage } from '@/types';
 
-const stageBadge: Record<DemoStage, { label: string; variant: "slate" | "blue" | "amber" | "violet" | "green" }> = {
-  idle: { label: "待组队", variant: "slate" },
-  team_configured: { label: "团队就绪", variant: "blue" },
-  analyzing: { label: "需求分析中", variant: "blue" },
-  workflow_recommended: { label: "已推荐流程", variant: "blue" },
-  executing: { label: "执行中", variant: "blue" },
-  intervention: { label: "用户介入", variant: "amber" },
-  council: { label: "议会裁决中", variant: "violet" },
-  delivery: { label: "已交付", variant: "green" },
+const stageBadge: Record<
+  DemoStage,
+  { label: string; variant: 'slate' | 'blue' | 'amber' | 'violet' | 'green' }
+> = {
+  idle: { label: '待组队', variant: 'slate' },
+  team_configured: { label: '团队就绪', variant: 'blue' },
+  analyzing: { label: '需求分析中', variant: 'blue' },
+  workflow_recommended: { label: '已推荐流程', variant: 'blue' },
+  executing: { label: '执行中', variant: 'blue' },
+  intervention: { label: '用户介入', variant: 'amber' },
+  council: { label: '议会裁决中', variant: 'violet' },
+  delivery: { label: '已交付', variant: 'green' },
 };
 
 export function TaskBoard() {
+  const activeTaskId = useDemoStore((s) => s.activeTaskId);
+  if (!activeTaskId) return <NoTaskBoard />;
+  return <TaskBoardInner />;
+}
+
+function TaskBoardInner() {
   const stage = useDemoStore((s) => s.stage);
   const taskText = useDemoStore((s) => s.taskText);
   const setTaskText = useDemoStore((s) => s.setTaskText);
@@ -59,22 +70,17 @@ export function TaskBoard() {
 
   const [interveneOpen, setInterveneOpen] = useState(false);
 
-  const activeNode =
-    stage === "executing" && activeStepIndex >= 0
-      ? nodes[activeStepIndex]
-      : null;
+  const activeNode = stage === 'executing' && activeStepIndex >= 0 ? nodes[activeStepIndex] : null;
 
-  const showStart = stage === "idle" || stage === "team_configured";
-  const showRecommend =
-    stage === "analyzing" || stage === "workflow_recommended";
-  const showExecuteControls = stage === "executing";
+  const showStart = stage === 'idle' || stage === 'team_configured';
+  const showRecommend = stage === 'analyzing' || stage === 'workflow_recommended';
+  const showExecuteControls = stage === 'executing';
   // 用 code 判断（并行执行段节点 id 带 -be/-te 后缀，code 仍为 N7）
-  const showIntervene = activeNode?.code === "N7";
-  const showCouncil =
-    activeNode?.code === "N13" || activeNode?.code === "N14";
-  const showDelivered = stage === "delivery";
+  const showIntervene = activeNode?.code === 'N7';
+  const showCouncil = activeNode?.code === 'N13' || activeNode?.code === 'N14';
+  const showDelivered = stage === 'delivery';
 
-  const hasWorkflow = stage !== "idle" && stage !== "team_configured" && stage !== "analyzing";
+  const hasWorkflow = stage !== 'idle' && stage !== 'team_configured' && stage !== 'analyzing';
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -83,15 +89,11 @@ export function TaskBoard() {
         {/* Command Bar */}
         <div className="border-b border-line px-5 py-4">
           <div className="mb-2 flex items-center gap-3">
-            <div className="callsign text-[10px] text-command-soft">
-              // 02 · 执行
-            </div>
+            <div className="callsign text-[10px] text-command-soft">// 02 · 执行</div>
             <h1 className="font-display text-lg font-semibold tracking-tight text-white">
-              {activeTask?.title ?? "Task Board"}
+              {activeTask?.title ?? 'Task Board'}
             </h1>
-            <Badge variant={stageBadge[stage].variant}>
-              {stageBadge[stage].label}
-            </Badge>
+            <Badge variant={stageBadge[stage].variant}>{stageBadge[stage].label}</Badge>
             {assignedAgentIds.length < 3 && (
               <span className="text-xs text-human/80">
                 当前团队人数不足（建议至少 3 名）。可前往 Agent Board → 自定义团队
@@ -107,7 +109,7 @@ export function TaskBoard() {
                 value={taskText}
                 onChange={(e) => setTaskText(e.target.value)}
                 rows={2}
-                disabled={stage !== "idle" && stage !== "team_configured"}
+                disabled={stage !== 'idle' && stage !== 'team_configured'}
                 className="disabled:opacity-70"
               />
             </div>
@@ -128,11 +130,7 @@ export function TaskBoard() {
 
         {/* Canvas / placeholder */}
         <div className="relative min-h-0 flex-1">
-          {hasWorkflow ? (
-            <WorkflowCanvas />
-          ) : (
-            <EmptyCanvas stage={stage} />
-          )}
+          {hasWorkflow ? <WorkflowCanvas /> : <EmptyCanvas stage={stage} />}
         </div>
 
         {/* Execution timeline */}
@@ -140,9 +138,7 @@ export function TaskBoard() {
 
         {/* Demo Controls */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line bg-ink-900/60 px-5 py-3">
-          <span className="callsign mr-1 text-[9px] text-slate-500">
-            ▸ DEMO CONTROLS
-          </span>
+          <span className="callsign mr-1 text-[9px] text-slate-500">▸ DEMO CONTROLS</span>
 
           {showExecuteControls && (
             <>
@@ -162,11 +158,7 @@ export function TaskBoard() {
           )}
 
           {showIntervene && (
-            <Button
-              variant="warning"
-              size="sm"
-              onClick={() => setInterveneOpen(true)}
-            >
+            <Button variant="warning" size="sm" onClick={() => setInterveneOpen(true)}>
               <Hand className="h-4 w-4" /> Intervene
             </Button>
           )}
@@ -189,9 +181,7 @@ export function TaskBoard() {
             !showDelivered &&
             !showStart &&
             !showRecommend && (
-              <span className="text-xs text-slate-600">
-                根据流程进度自动显示可用操作
-              </span>
+              <span className="text-xs text-slate-600">根据流程进度自动显示可用操作</span>
             )}
         </div>
       </div>
@@ -205,21 +195,45 @@ export function TaskBoard() {
         maxWidth={620}
         storageKey="task-inspector"
       >
-        {stage === "delivery" ? (
+        {stage === 'delivery' ? (
           <DeliveryReport />
-        ) : stage === "analyzing" || stage === "workflow_recommended" ? (
+        ) : stage === 'analyzing' || stage === 'workflow_recommended' ? (
           <TaskUnderstandingPanel />
-        ) : stage === "idle" || stage === "team_configured" ? (
+        ) : stage === 'idle' || stage === 'team_configured' ? (
           <IdleRightPanel />
         ) : (
           <NodeInspector />
         )}
       </SidePanel>
 
-      <InterveneDialog
-        open={interveneOpen}
-        onClose={() => setInterveneOpen(false)}
-      />
+      <InterveneDialog open={interveneOpen} onClose={() => setInterveneOpen(false)} />
+    </div>
+  );
+}
+
+function NoTaskBoard() {
+  const [reqOpen, setReqOpen] = useState(false);
+  const projects = useDemoStore((s) => s.projects);
+  const activeProjectId = useDemoStore((s) => s.activeProjectId);
+  const activeProject = projects.find((p) => p.id === activeProjectId);
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink-800 text-slate-500">
+        <FilePlus2 className="h-8 w-8" />
+      </div>
+      <div>
+        <div className="font-display text-lg font-semibold text-white">
+          {activeProject?.name ?? '当前项目'} · 还没有任务
+        </div>
+        <p className="mt-1 max-w-sm text-sm text-slate-500">
+          输入一条需求，Agent 会分析并推荐执行 Workflow。
+        </p>
+      </div>
+      <Button variant="primary" onClick={() => setReqOpen(true)}>
+        <FilePlus2 className="h-4 w-4" /> 新建需求
+      </Button>
+      <NewRequirementDialog open={reqOpen} onClose={() => setReqOpen(false)} />
     </div>
   );
 }
@@ -231,9 +245,9 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
         <Workflow className="h-7 w-7" />
       </div>
       <div className="text-sm text-slate-400">
-        {stage === "analyzing"
-          ? "需求分析完成，点击 “Use Recommended Workflow” 开始执行并逐步生成泳道图"
-          : "输入任务并点击 “Start Task” 开始"}
+        {stage === 'analyzing'
+          ? '需求分析完成，点击 “Use Recommended Workflow” 开始执行并逐步生成泳道图'
+          : '输入任务并点击 “Start Task” 开始'}
       </div>
       <div className="text-xs text-slate-600">
         执行过程将沿 7 条责任方 Lane 动态生成 N0–N18 全链路节点
@@ -249,32 +263,32 @@ function TaskUnderstandingPanel() {
   const rows = [
     {
       icon: Target,
-      title: "需求目标",
-      tone: "text-blue-300",
+      title: '需求目标',
+      tone: 'text-blue-300',
       content: taskUnderstanding.goal,
     },
     {
       icon: FolderTree,
-      title: "涉及模块",
-      tone: "text-cyan-300",
-      content: taskUnderstanding.modules.join("、"),
+      title: '涉及模块',
+      tone: 'text-cyan-300',
+      content: taskUnderstanding.modules.join('、'),
     },
     {
       icon: FlaskConical,
-      title: "测试目录",
-      tone: "text-emerald-300",
+      title: '测试目录',
+      tone: 'text-emerald-300',
       content: taskUnderstanding.testDir,
     },
     {
       icon: ShieldAlert,
-      title: "潜在风险",
-      tone: "text-rose-300",
-      content: taskUnderstanding.risks.join("、"),
+      title: '潜在风险',
+      tone: 'text-rose-300',
+      content: taskUnderstanding.risks.join('、'),
     },
     {
       icon: Sparkles,
-      title: "推荐 Workflow",
-      tone: "text-violet-300",
+      title: '推荐 Workflow',
+      tone: 'text-violet-300',
       content: taskUnderstanding.workflow,
     },
   ];
@@ -284,13 +298,9 @@ function TaskUnderstandingPanel() {
       <div className="border-b border-slate-800/80 p-5">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-blue-400" />
-          <h2 className="text-base font-semibold text-white">
-            Task Understanding
-          </h2>
+          <h2 className="text-base font-semibold text-white">Task Understanding</h2>
         </div>
-        <p className="mt-1 text-xs text-slate-500">
-          系统已完成需求结构化分析（mock）
-        </p>
+        <p className="mt-1 text-xs text-slate-500">系统已完成需求结构化分析（mock）</p>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-5">
@@ -301,27 +311,19 @@ function TaskUnderstandingPanel() {
               key={r.title}
               className="rounded-lg border border-slate-800 bg-ink-900/60 p-3 animate-fade-in"
             >
-              <div
-                className={`mb-1 flex items-center gap-1.5 text-[11px] font-semibold ${r.tone}`}
-              >
+              <div className={`mb-1 flex items-center gap-1.5 text-[11px] font-semibold ${r.tone}`}>
                 <Icon className="h-3.5 w-3.5" />
                 {r.title}
               </div>
-              <p className="text-xs leading-relaxed text-slate-300">
-                {r.content}
-              </p>
+              <p className="text-xs leading-relaxed text-slate-300">{r.content}</p>
             </div>
           );
         })}
       </div>
 
-      {stage === "analyzing" && (
+      {stage === 'analyzing' && (
         <div className="border-t border-slate-800/80 p-4">
-          <Button
-            variant="primary"
-            className="w-full"
-            onClick={useRecommendedWorkflow}
-          >
+          <Button variant="primary" className="w-full" onClick={useRecommendedWorkflow}>
             <Workflow className="h-4 w-4" /> Use Recommended Workflow
           </Button>
         </div>
@@ -335,9 +337,7 @@ function IdleRightPanel() {
     <div className="flex h-full flex-col items-center justify-center px-6 text-center text-slate-500">
       <Play className="mb-3 h-10 w-10 text-slate-700" />
       <p className="text-sm">输入任务并点击 Start Task</p>
-      <p className="text-xs text-slate-600">
-        系统会先分析需求，再推荐多 Agent 执行流程
-      </p>
+      <p className="text-xs text-slate-600">系统会先分析需求，再推荐多 Agent 执行流程</p>
     </div>
   );
 }
