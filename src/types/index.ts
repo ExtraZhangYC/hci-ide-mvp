@@ -151,6 +151,15 @@ export type FrozenLevel = 'frozen' | 'partial' | 'tbd' | 'reserved';
 /** 字段清单中的一条字段（key + 中文释义/类型说明） */
 export type FieldSpec = { key: string; desc: string };
 
+/**
+ * 节点信息分层（泳道图渐进披露的依据）：
+ * - human：人的时刻（需求输入 / 可介入 / Gate ask / Council）——始终大卡片、琥珀前置
+ * - milestone：人关心结果的里程碑（分诊结论 / 产物 / 授权 / 交付）——大卡片
+ * - machine：A/B/C/D 内部握手（建 Run / ContextPack / Hook 匹配…）——默认折叠成小胶囊，
+ *   活动中 / 被选中 / 全局展开时还原为大卡片
+ */
+export type NodeTier = 'human' | 'milestone' | 'machine';
+
 export type WorkflowNodeData = {
   id: string;
   /** 流程图节点编号，如 N0 / N13 */
@@ -163,6 +172,8 @@ export type WorkflowNodeData = {
   direction: NodeDirection;
   /** 网格列号（x 轴）；并行兄弟节点共用同一 column */
   column: number;
+  /** 信息分层（必填，保证每个节点都被显式归类） */
+  tier: NodeTier;
   /** 前驱节点 id 列表，作为连线与揭示门控的真相源 */
   deps: string[];
   owner: string;
