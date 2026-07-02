@@ -9,52 +9,54 @@ import {
   CircleDashed,
   Radio,
   GitBranch,
-} from "lucide-react";
-import { useDemoStore } from "@/store/useDemoStore";
-import { NodeStatusPill, TaskStatusPill } from "@/components/StatusPill";
-import { NodeExecutionLog } from "@/components/NodeExecutionLog";
-import { Badge } from "@/components/ui/Badge";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { useDemoStore } from '@/store/useDemoStore';
+import { NodeStatusPill, TaskStatusPill } from '@/components/StatusPill';
+import { NodeExecutionLog } from '@/components/NodeExecutionLog';
+import { FileOpsPanel } from '@/components/FileOpsPanel';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
+import { UI_TO_CONTRACT_TASK_STATUS } from '@/api/map';
 import type {
   FieldSpec,
   FrozenLevel,
   GateDecision,
   InterventionScope,
   NodeDirection,
-} from "@/types";
+} from '@/types';
 
 const scopeLabels: Record<InterventionScope, string> = {
-  current_step: "仅当前步骤",
-  current_agent: "当前 Agent 后续",
-  whole_workflow: "整个 Workflow",
-  project_rule: "项目长期规则",
+  current_step: '仅当前步骤',
+  current_agent: '当前 Agent 后续',
+  whole_workflow: '整个 Workflow',
+  project_rule: '项目长期规则',
 };
 
 const directionLabels: Record<NodeDirection, string> = {
-  User: "User · 用户 / 前端",
-  A: "A · Driver 执行",
-  B: "B · 角色 / 记忆",
-  C: "C · 协调编排",
-  D: "D · Hook / Gate",
-  Merger: "Merger · 合并器",
+  User: 'User · 用户 / 前端',
+  A: 'A · Driver 执行',
+  B: 'B · 角色 / 记忆',
+  C: 'C · 协调编排',
+  D: 'D · Hook / Gate',
+  Merger: 'Merger · 合并器',
 };
 
 const frozenBadge: Record<
   FrozenLevel,
-  { label: string; variant: "green" | "amber" | "red" | "slate" }
+  { label: string; variant: 'green' | 'amber' | 'red' | 'slate' }
 > = {
-  frozen: { label: "🟢 frozen · 可直接对接", variant: "green" },
-  partial: { label: "🟡 partial · 部分待定", variant: "amber" },
-  tbd: { label: "🔴 tbd · 字段未冻结", variant: "red" },
-  reserved: { label: "reserved · v0 后置", variant: "slate" },
+  frozen: { label: '🟢 frozen · 可直接对接', variant: 'green' },
+  partial: { label: '🟡 partial · 部分待定', variant: 'amber' },
+  tbd: { label: '🔴 tbd · 字段未冻结', variant: 'red' },
+  reserved: { label: 'reserved · v0 后置', variant: 'slate' },
 };
 
 // Gate 四种决策 → 状态落点（字段清单 N13 decision_to_status）
 const gateBranches: { decision: GateDecision; target: string }[] = [
-  { decision: "allow", target: "→ reviewing / completed" },
-  { decision: "deny", target: "→ blocked" },
-  { decision: "ask", target: "→ waiting_input" },
-  { decision: "defer", target: "→ pending_gate / pending_council" },
+  { decision: 'allow', target: '→ reviewing / completed' },
+  { decision: 'deny', target: '→ blocked' },
+  { decision: 'ask', target: '→ waiting_input' },
+  { decision: 'defer', target: '→ pending_gate / pending_council' },
 ];
 
 export function NodeInspector() {
@@ -73,9 +75,7 @@ export function NodeInspector() {
           <div className="callsign flex items-center gap-2 text-[10px] text-human">
             <ShieldCheck className="h-4 w-4" /> 介入已生效
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-human-soft/90">
-            {feedback}
-          </p>
+          <p className="mt-1 text-xs leading-relaxed text-human-soft/90">{feedback}</p>
         </div>
       )}
 
@@ -122,14 +122,17 @@ export function NodeInspector() {
                 TASK STATUS · 协调器主状态
               </div>
               {node.taskStatus ? (
-                <TaskStatusPill status={node.taskStatus} />
+                <>
+                  <TaskStatusPill status={node.taskStatus} />
+                  <p className="mt-1.5 font-mono text-[10px] text-slate-500">
+                    契约态 · TaskStatus = {UI_TO_CONTRACT_TASK_STATUS[node.taskStatus]}
+                  </p>
+                </>
               ) : (
                 <span className="font-mono text-[11px] text-slate-400">—</span>
               )}
               {node.statusNote && (
-                <p className="mt-1.5 font-mono text-[10px] text-slate-500">
-                  {node.statusNote}
-                </p>
+                <p className="mt-1.5 font-mono text-[10px] text-slate-500">{node.statusNote}</p>
               )}
             </div>
 
@@ -150,10 +153,10 @@ export function NodeInspector() {
                       <div
                         key={b.decision}
                         className={cn(
-                          "flex items-center justify-between rounded px-2 py-1 font-mono text-[10px]",
+                          'flex items-center justify-between rounded px-2 py-1 font-mono text-[10px]',
                           active
-                            ? "bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-500/40"
-                            : "text-slate-500"
+                            ? 'bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-500/40'
+                            : 'text-slate-500',
                         )}
                       >
                         <span className="font-semibold">{b.decision}</span>
@@ -203,18 +206,8 @@ export function NodeInspector() {
               </div>
             )}
 
-            <InfoList
-              icon={ArrowDownToLine}
-              title="输入"
-              items={node.input}
-              tone="blue"
-            />
-            <InfoList
-              icon={ArrowUpFromLine}
-              title="输出"
-              items={node.output}
-              tone="green"
-            />
+            <InfoList icon={ArrowDownToLine} title="输入" items={node.input} tone="blue" />
+            <InfoList icon={ArrowUpFromLine} title="输出" items={node.output} tone="green" />
 
             <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-300">
@@ -230,6 +223,8 @@ export function NodeInspector() {
               <p className="mt-1 text-xs text-slate-300">{node.nextAction}</p>
             </div>
 
+            <FileOpsPanel nodeId={node.id} status={node.status} />
+
             <NodeExecutionLog nodeId={node.id} status={node.status} />
           </div>
         )}
@@ -244,10 +239,7 @@ export function NodeInspector() {
           </div>
           <div className="space-y-2">
             {rules.map((r, i) => (
-              <div
-                key={i}
-                className="rounded-md border border-human/30 bg-human/5 p-3"
-              >
+              <div key={i} className="rounded-md border border-human/30 bg-human/5 p-3">
                 <p className="text-xs text-human-soft">{r.text}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <Badge variant="amber">{scopeLabels[r.scope]}</Badge>
@@ -276,18 +268,13 @@ function FieldSchema({
   icon: typeof CheckCircle2;
   title: string;
   fields: FieldSpec[];
-  tone: "emerald" | "amber";
+  tone: 'emerald' | 'amber';
   emptyText: string;
 }) {
-  const toneText = tone === "emerald" ? "text-emerald-300" : "text-amber-300";
+  const toneText = tone === 'emerald' ? 'text-emerald-300' : 'text-amber-300';
   return (
     <div>
-      <div
-        className={cn(
-          "mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold",
-          toneText
-        )}
-      >
+      <div className={cn('mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold', toneText)}>
         <Icon className="h-3.5 w-3.5" /> {title}
         <span className="text-slate-600">· {fields.length}</span>
       </div>
@@ -300,9 +287,7 @@ function FieldSchema({
               key={f.key}
               className="rounded-md border border-slate-800 bg-ink-900/60 px-2.5 py-1.5"
             >
-              <div className="font-mono text-[11px] font-semibold text-slate-200">
-                {f.key}
-              </div>
+              <div className="font-mono text-[11px] font-semibold text-slate-200">{f.key}</div>
               <div className="mt-0.5 font-mono text-[10px] leading-snug text-slate-500">
                 {f.desc}
               </div>
@@ -323,14 +308,14 @@ function InfoList({
   icon: typeof ArrowDownToLine;
   title: string;
   items: string[];
-  tone: "blue" | "green";
+  tone: 'blue' | 'green';
 }) {
   return (
     <div>
       <div
         className={cn(
-          "mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold",
-          tone === "blue" ? "text-blue-300" : "text-emerald-300"
+          'mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold',
+          tone === 'blue' ? 'text-blue-300' : 'text-emerald-300',
         )}
       >
         <Icon className="h-3.5 w-3.5" /> {title}

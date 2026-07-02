@@ -26,7 +26,7 @@ import { InterveneDialog } from '@/components/InterveneDialog';
 import { NewRequirementDialog } from '@/components/NewRequirementDialog';
 import { DeliveryReport } from '@/components/DeliveryReport';
 import { SidePanel } from '@/components/SidePanel';
-import { taskUnderstanding } from '@/data/deliveryReport';
+import { deriveScenario } from '@/data/scenario';
 import type { DemoStage } from '@/types';
 
 const stageBadge: Record<
@@ -94,6 +94,14 @@ function TaskBoardInner() {
               {activeTask?.title ?? 'Task Board'}
             </h1>
             <Badge variant={stageBadge[stage].variant}>{stageBadge[stage].label}</Badge>
+            {/* N2 受理遥测：后端（C）回填权威 task_id 前显示本地态 */}
+            {activeTask?.contractTaskId ? (
+              <span className="callsign text-[9px] text-emerald-300/80">
+                COORD · {activeTask.contractTaskId}
+              </span>
+            ) : (
+              <span className="callsign text-[9px] text-slate-500">COORD · 本地 · 未受理</span>
+            )}
             {assignedAgentIds.length < 3 && (
               <span className="text-xs text-human/80">
                 当前团队人数不足（建议至少 3 名）。可前往 Agent Board → 自定义团队
@@ -259,37 +267,39 @@ function EmptyCanvas({ stage }: { stage: DemoStage }) {
 function TaskUnderstandingPanel() {
   const useRecommendedWorkflow = useDemoStore((s) => s.useRecommendedWorkflow);
   const stage = useDemoStore((s) => s.stage);
+  const taskText = useDemoStore((s) => s.taskText);
+  const understanding = deriveScenario(taskText).understanding;
 
   const rows = [
     {
       icon: Target,
       title: '需求目标',
       tone: 'text-blue-300',
-      content: taskUnderstanding.goal,
+      content: understanding.goal,
     },
     {
       icon: FolderTree,
       title: '涉及模块',
       tone: 'text-cyan-300',
-      content: taskUnderstanding.modules.join('、'),
+      content: understanding.modules.join('、'),
     },
     {
       icon: FlaskConical,
       title: '测试目录',
       tone: 'text-emerald-300',
-      content: taskUnderstanding.testDir,
+      content: understanding.testDir,
     },
     {
       icon: ShieldAlert,
       title: '潜在风险',
       tone: 'text-rose-300',
-      content: taskUnderstanding.risks.join('、'),
+      content: understanding.risks.join('、'),
     },
     {
       icon: Sparkles,
       title: '推荐 Workflow',
       tone: 'text-violet-300',
-      content: taskUnderstanding.workflow,
+      content: understanding.workflow,
     },
   ];
 

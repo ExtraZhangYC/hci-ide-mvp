@@ -1,3 +1,14 @@
+// 与后端契约镜像对齐：UI 直接复用契约里"完全一致"的枚举，
+// 让后端契约漂移在编译期咬住前端。刻意换了词表的状态机（TaskStatusCore /
+// CouncilVerdict）不在此直接替换，改由 src/api/map.ts 的 Record 桥接映射兜住。
+import type {
+  AgentRuntimeStatus,
+  FilePermissionOutcome,
+  GateDecision as ContractGateDecision,
+  LeaseScope,
+  LeaseStatus,
+} from '@/api/types';
+
 export type PageKey = 'agents' | 'tasks' | 'council';
 
 /** 文件树节点：有 children 即目录，无则为文件 */
@@ -28,6 +39,15 @@ export type DemoTask = {
   projectId: string;
   title: string;
   taskText: string;
+  /** 该任务绑定的 Agent 团队（按需求推荐，随任务走，可自定义） */
+  assignedAgentIds: string[];
+  /** 后端（C）受理后回填的权威 task_id；缺失表示尚未受理或提交失败 */
+  contractTaskId?: string;
+  /** 用户在 N0 自报的验收标准（随 TaskCreateRequest.completion_criteria 上送） */
+  completionCriteria?: string[];
+  /** 文件写入权限确认结果（tool_event_id → 人选的 outcome），随任务持久化。
+   *  可选：兼容旧版存盘文件（缺失按空记录处理） */
+  filePermissionOutcomes?: Record<string, FilePermissionOutcome>;
   stage: DemoStage;
   analysisReady: boolean;
   nodes: WorkflowNodeData[];
@@ -50,15 +70,19 @@ export type DemoStage =
   | 'council'
   | 'delivery';
 
-export type AgentStatus = 'idle' | 'working' | 'waiting' | 'reviewing' | 'done';
+/** 与契约镜像 `AgentRuntimeState.status` 同源（方向 B）。 */
+export type AgentStatus = AgentRuntimeStatus;
 
-/** N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease） */
+/**
+ * N4 认领时签发的文件租约 FileLease（字段清单 N4.file_lease）。
+ * scope/status 直接采用契约镜像的 `LeaseScope`/`LeaseStatus`（对齐 BCD core/lease.ts）。
+ */
 export type FileLease = {
   lease_id: string;
   path_glob: string;
-  scope: 'read' | 'write';
+  scope: LeaseScope;
   expires_at: string;
-  status: string;
+  status: LeaseStatus;
 };
 
 /** N4 AgentRecord + N6 Driver Session 的运行态身份（字段清单 N4.agent / N6） */
@@ -115,8 +139,8 @@ export type TaskStatusCore =
   | 'failed'
   | 'cancelled';
 
-/** Gate 四种决策（见 字段清单 N13） */
-export type GateDecision = 'allow' | 'deny' | 'ask' | 'defer';
+/** Gate 四种决策（见 字段清单 N13）—— 直接复用契约镜像的 `GateDecision`（方向 D）。 */
+export type GateDecision = ContractGateDecision;
 
 /** 节点责任方：A=Driver执行 B=角色记忆 C=主链路编排 D=Hook/Gate */
 export type NodeDirection = 'User' | 'A' | 'B' | 'C' | 'D' | 'Merger';
@@ -126,6 +150,15 @@ export type FrozenLevel = 'frozen' | 'partial' | 'tbd' | 'reserved';
 
 /** 字段清单中的一条字段（key + 中文释义/类型说明） */
 export type FieldSpec = { key: string; desc: string };
+
+/**
+ * 节点信息分层（泳道图渐进披露的依据）：
+ * - human：人的时刻（需求输入 / 可介入 / Gate ask / Council）——始终大卡片、琥珀前置
+ * - milestone：人关心结果的里程碑（分诊结论 / 产物 / 授权 / 交付）——大卡片
+ * - machine：A/B/C/D 内部握手（建 Run / ContextPack / Hook 匹配…）——默认折叠成小胶囊，
+ *   活动中 / 被选中 / 全局展开时还原为大卡片
+ */
+export type NodeTier = 'human' | 'milestone' | 'machine';
 
 export type WorkflowNodeData = {
   id: string;
@@ -139,6 +172,8 @@ export type WorkflowNodeData = {
   direction: NodeDirection;
   /** 网格列号（x 轴）；并行兄弟节点共用同一 column */
   column: number;
+  /** 信息分层（必填，保证每个节点都被显式归类） */
+  tier: NodeTier;
   /** 前驱节点 id 列表，作为连线与揭示门控的真相源 */
   deps: string[];
   owner: string;
