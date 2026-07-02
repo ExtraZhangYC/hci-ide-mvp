@@ -1,11 +1,11 @@
 /**
- * 方向 F · API client —— 前端到后端的第一条真实调用链（N2 创建 Task）。
+ * 方向 E · API client —— 前端到后端的第一条真实调用链（N2 创建 Task）。
  *
  * 契约锚点：`TaskCreateRequest` → `Task`（api/需求到处理-全流程图与状态机.md
  * N2 行，🟢 frozen；实体形状见 ./types/coord.ts，对齐 BCD core/task.ts）。
  *
  * 路由说明：后端契约冻结的是**实体形状**，HTTP 路由路径尚未发布。
- * `POST /tasks` 是 F 侧暂定约定，集中在本文件（TASKS_PATH），后端定稿后一处改。
+ * `POST /tasks` 是 E 侧暂定约定，集中在本文件（TASKS_PATH），后端定稿后一处改。
  *
  * Mock 边界：`apiConfig.useMock`（默认 true）时不发网络请求，本地伪造一个
  * 与后端受理行为同形的 `Task`（status='created'）走完同一条代码路径 ——

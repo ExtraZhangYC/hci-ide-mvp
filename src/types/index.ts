@@ -3,6 +3,7 @@
 // CouncilVerdict）不在此直接替换，改由 src/api/map.ts 的 Record 桥接映射兜住。
 import type {
   AgentRuntimeStatus,
+  FilePermissionOutcome,
   GateDecision as ContractGateDecision,
   LeaseScope,
   LeaseStatus,
@@ -44,6 +45,9 @@ export type DemoTask = {
   contractTaskId?: string;
   /** 用户在 N0 自报的验收标准（随 TaskCreateRequest.completion_criteria 上送） */
   completionCriteria?: string[];
+  /** 文件写入权限确认结果（tool_event_id → 人选的 outcome），随任务持久化。
+   *  可选：兼容旧版存盘文件（缺失按空记录处理） */
+  filePermissionOutcomes?: Record<string, FilePermissionOutcome>;
   stage: DemoStage;
   analysisReady: boolean;
   nodes: WorkflowNodeData[];

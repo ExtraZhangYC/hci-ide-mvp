@@ -1,5 +1,5 @@
 /**
- * 方向 F · 事件通道 —— 订阅后端 WS `/events`（全流程图 §8 第一阶段事件清单）。
+ * 方向 E · 事件通道 —— 订阅后端 WS `/events`（全流程图 §8 第一阶段事件清单）。
  *
  * 后端各节点 emit 的流程事件（task.created / task.claimed / lifecycle.human_gate /
  * council.decision …）经此通道进入前端，是任务状态流转的唯一推送入口。
@@ -8,7 +8,7 @@
  * Mock 边界：`apiConfig.useMock` 时不建 WS 连接，改由 client.ts 的 mock 路径
  * 通过 `emitLocalEvent` 在本地喂入同形事件 —— 订阅方无需感知 mock 与否。
  *
- * F 职责边界：只接收与呈现，不确认、不重放、不参与事件持久化（C 负责 persist）。
+ * E 职责边界：只接收与呈现，不确认、不重放、不参与事件持久化（C 负责 persist）。
  */
 import { apiConfig } from './config';
 import type { Event } from './types';
@@ -115,7 +115,7 @@ export function onEvent(handler: EventHandler): () => void {
 /**
  * Mock 专用：本地喂入一条同形事件（client.ts mock 路径调用），
  * 让订阅方在无后端时走完全相同的消费链路。真连接模式下同样生效
- * （用于将来 F 本地合成的展示性事件），但后端事件永远以 WS 为准。
+ * （用于将来 E 本地合成的展示性事件），但后端事件永远以 WS 为准。
  */
 export function emitLocalEvent(event: Event) {
   dispatch(event);

@@ -6,4 +6,4 @@ export * from './gate'; // 方向 D：Hook 点位 / Gate
 export * from './driver'; // 方向 A：Driver / ACP 接入契约
 export * from './memory'; // 方向 B：ContextPack 记忆装配
 export * from './agent'; // 方向 B：Persona/Metrics/DriverInfo 展示视图
-export * from './fileops'; // 方向 F：文件读/写/建操作观测视图（消费 A/C/D）
+export * from './fileops'; // 方向 E：文件读/写/建操作观测视图（消费 A/C/D）

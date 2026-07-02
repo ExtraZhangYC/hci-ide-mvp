@@ -25,7 +25,7 @@ import { captureSnapshot, nextTimelineId, resetTimelineSeq } from '@/lib/snapsho
 import { createTask as apiCreateTask } from '@/api/client';
 import { onEvent, onEventChannelStatus, type EventChannelStatus } from '@/api/events';
 import { toTaskCreateRequest } from '@/api/map';
-import type { Event as ContractEvent } from '@/api/types';
+import type { Event as ContractEvent, FilePermissionOutcome } from '@/api/types';
 
 const DOWNSTREAM_UPDATED_IDS = [NODE_IDS.gate, 'n15-merge-auth', NODE_IDS.complete];
 
@@ -106,6 +106,7 @@ type TaskFields = Pick<
   | 'interventionRules'
   | 'confirmedCouncilOptionId'
   | 'interventionFeedback'
+  | 'filePermissionOutcomes'
   | 'timeline'
 >;
 
@@ -122,6 +123,7 @@ function cloneTask(task: DemoTask): DemoTask {
       ...r,
       affectedAgents: [...r.affectedAgents],
     })),
+    filePermissionOutcomes: { ...(task.filePermissionOutcomes ?? {}) },
     timeline: [...task.timeline],
   };
 }
@@ -139,6 +141,7 @@ function extractTaskFields(state: TaskFields): TaskFields {
     interventionRules: state.interventionRules,
     confirmedCouncilOptionId: state.confirmedCouncilOptionId,
     interventionFeedback: state.interventionFeedback,
+    filePermissionOutcomes: state.filePermissionOutcomes,
     timeline: state.timeline,
   };
 }
@@ -165,6 +168,7 @@ function emptyTaskFields(): TaskFields {
     interventionRules: [],
     confirmedCouncilOptionId: null,
     interventionFeedback: null,
+    filePermissionOutcomes: {},
     timeline: [],
   };
 }
@@ -237,11 +241,13 @@ type DemoState = PartialExecState &
     addInterventionRule: (rule: InterventionRule) => void;
     goToCouncil: () => void;
     confirmCouncilOption: (optionId: string) => void;
+    /** 文件写入权限确认（N7 · lifecycle.human_gate 的文件层落点）：记录人选结果 */
+    resolveFilePermission: (toolEventId: string, outcome: FilePermissionOutcome) => void;
     showDelivery: () => void;
     restoreCheckpoint: (eventId: string) => void;
   };
 
-/** 事件日志封顶条数：只做近期观测窗口，完整审计流由 C 持久化（F 不重放）。 */
+/** 事件日志封顶条数：只做近期观测窗口，完整审计流由 C 持久化（E 不重放）。 */
 const EVENT_LOG_CAP = 200;
 
 /** 空白启动态：无项目、无任务，停在启动页由用户新建。 */
@@ -563,7 +569,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       isAutoRunning: false,
     });
     // N2 创建 Task：本地乐观创建后异步提交协调器（C），受理成功回填权威 task_id。
-    // 提交失败不回滚本地任务（F 侧演示流仍可走），仅留日志待重试机制补上。
+    // 提交失败不回滚本地任务（E 侧演示流仍可走），仅留日志待重试机制补上。
     void apiCreateTask(toTaskCreateRequest(text, completionCriteria))
       .then((contractTask) => {
         set((s) => ({
@@ -897,6 +903,19 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
     });
   },
+
+  resolveFilePermission: (toolEventId, outcome) =>
+    set((state) => {
+      const filePermissionOutcomes = {
+        ...(state.filePermissionOutcomes ?? {}),
+        [toolEventId]: outcome,
+      };
+      const taskFields = extractTaskFields({ ...state, filePermissionOutcomes });
+      return {
+        filePermissionOutcomes,
+        tasks: syncTasks(state.tasks, state.activeTaskId, taskFields),
+      };
+    }),
 
   showDelivery: () =>
     set((state) => {

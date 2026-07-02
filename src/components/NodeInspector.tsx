@@ -13,6 +13,7 @@ import {
 import { useDemoStore } from '@/store/useDemoStore';
 import { NodeStatusPill, TaskStatusPill } from '@/components/StatusPill';
 import { NodeExecutionLog } from '@/components/NodeExecutionLog';
+import { FileOpsPanel } from '@/components/FileOpsPanel';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import { UI_TO_CONTRACT_TASK_STATUS } from '@/api/map';
@@ -221,6 +222,8 @@ export function NodeInspector() {
               </div>
               <p className="mt-1 text-xs text-slate-300">{node.nextAction}</p>
             </div>
+
+            <FileOpsPanel nodeId={node.id} status={node.status} />
 
             <NodeExecutionLog nodeId={node.id} status={node.status} />
           </div>

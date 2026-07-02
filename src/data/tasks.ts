@@ -57,6 +57,7 @@ export function createRequirementTask(
     interventionRules: [],
     confirmedCouncilOptionId: null,
     interventionFeedback: null,
+    filePermissionOutcomes: {},
     timeline: [],
   };
 }
