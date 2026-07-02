@@ -11,7 +11,13 @@
  * 映射方向恒为 UI → 契约（有损收敛）：UI 词表更细，向后端较粗的 v0 枚举收拢。
  */
 import type { CouncilVerdict, TaskStatusCore } from '@/types';
-import type { AcpFsMethod, CouncilDecision, FileOpIntent, TaskStatus } from '@/api/types';
+import type {
+  AcpFsMethod,
+  CouncilDecision,
+  FileOpIntent,
+  TaskCreateRequest,
+  TaskStatus,
+} from '@/api/types';
 
 /**
  * 协调器主状态：UI 展示态 → 契约 `TaskStatus`。
@@ -59,3 +65,15 @@ export const UI_FILE_INTENT_TO_ACP_METHOD: Record<FileOpIntent, AcpFsMethod> = {
   create: 'fs/write_text_file',
   list: 'fs/list_directory',
 };
+
+/**
+ * N0 Intake → N2 请求体：原始需求文本 → 契约 `TaskCreateRequest`。
+ * `completion_criteria` 传空数组：验收标准由 N1 Triage 起草（全流程图 N1 行的
+ * 输出即"TaskCreateRequest 草案"，字段 🔴 TBD），F 只透传原始文本、不代拟标准。
+ */
+export function toTaskCreateRequest(rawSpecText: string): TaskCreateRequest {
+  return {
+    spec: rawSpecText,
+    completion_criteria: [],
+  };
+}

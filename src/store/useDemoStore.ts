@@ -22,6 +22,8 @@ import {
   revealedCountThroughColumn,
 } from '@/data/workflow';
 import { captureSnapshot, nextTimelineId, resetTimelineSeq } from '@/lib/snapshot';
+import { createTask as apiCreateTask } from '@/api/client';
+import { toTaskCreateRequest } from '@/api/map';
 
 const DOWNSTREAM_UPDATED_IDS = [NODE_IDS.gate, 'n15-merge-auth', NODE_IDS.complete];
 
@@ -543,6 +545,19 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       ...taskToState(newTask),
       isAutoRunning: false,
     });
+    // N2 创建 Task：本地乐观创建后异步提交协调器（C），受理成功回填权威 task_id。
+    // 提交失败不回滚本地任务（F 侧演示流仍可走），仅留日志待重试机制补上。
+    void apiCreateTask(toTaskCreateRequest(text))
+      .then((contractTask) => {
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === newTask.id ? { ...t, contractTaskId: contractTask.task_id } : t,
+          ),
+        }));
+      })
+      .catch((err: unknown) => {
+        console.warn('[api] createTask 提交失败，任务仅存在于本地：', err);
+      });
   },
 
   startTask: () =>

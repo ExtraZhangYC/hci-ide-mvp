@@ -40,6 +40,8 @@ export type DemoTask = {
   taskText: string;
   /** 该任务绑定的 Agent 团队（按需求推荐，随任务走，可自定义） */
   assignedAgentIds: string[];
+  /** 后端（C）受理后回填的权威 task_id；缺失表示尚未受理或提交失败 */
+  contractTaskId?: string;
   stage: DemoStage;
   analysisReady: boolean;
   nodes: WorkflowNodeData[];
