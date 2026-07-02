@@ -42,6 +42,8 @@ export type DemoTask = {
   assignedAgentIds: string[];
   /** 后端（C）受理后回填的权威 task_id；缺失表示尚未受理或提交失败 */
   contractTaskId?: string;
+  /** 用户在 N0 自报的验收标准（随 TaskCreateRequest.completion_criteria 上送） */
+  completionCriteria?: string[];
   stage: DemoStage;
   analysisReady: boolean;
   nodes: WorkflowNodeData[];

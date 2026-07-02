@@ -94,6 +94,14 @@ function TaskBoardInner() {
               {activeTask?.title ?? 'Task Board'}
             </h1>
             <Badge variant={stageBadge[stage].variant}>{stageBadge[stage].label}</Badge>
+            {/* N2 受理遥测：后端（C）回填权威 task_id 前显示本地态 */}
+            {activeTask?.contractTaskId ? (
+              <span className="callsign text-[9px] text-emerald-300/80">
+                COORD · {activeTask.contractTaskId}
+              </span>
+            ) : (
+              <span className="callsign text-[9px] text-slate-500">COORD · 本地 · 未受理</span>
+            )}
             {assignedAgentIds.length < 3 && (
               <span className="text-xs text-human/80">
                 当前团队人数不足（建议至少 3 名）。可前往 Agent Board → 自定义团队

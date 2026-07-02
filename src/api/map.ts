@@ -67,13 +67,16 @@ export const UI_FILE_INTENT_TO_ACP_METHOD: Record<FileOpIntent, AcpFsMethod> = {
 };
 
 /**
- * N0 Intake → N2 请求体：原始需求文本 → 契约 `TaskCreateRequest`。
- * `completion_criteria` 传空数组：验收标准由 N1 Triage 起草（全流程图 N1 行的
- * 输出即"TaskCreateRequest 草案"，字段 🔴 TBD），F 只透传原始文本、不代拟标准。
+ * N0 Intake → N2 请求体：原始需求文本（+ 用户自报验收标准）→ 契约 `TaskCreateRequest`。
+ * 用户未填验收标准时传空数组：验收标准由 N1 Triage 起草（全流程图 N1 行的
+ * 输出即"TaskCreateRequest 草案"，字段 🔴 TBD），F 只透传用户输入、不代拟标准。
  */
-export function toTaskCreateRequest(rawSpecText: string): TaskCreateRequest {
+export function toTaskCreateRequest(
+  rawSpecText: string,
+  completionCriteria: string[] = [],
+): TaskCreateRequest {
   return {
     spec: rawSpecText,
-    completion_criteria: [],
+    completion_criteria: completionCriteria.map((c) => c.trim()).filter(Boolean),
   };
 }

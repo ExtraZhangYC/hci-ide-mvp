@@ -36,13 +36,16 @@ export function createRequirementTask(
   projectId: string,
   rawText: string,
   title?: string,
+  completionCriteria?: string[],
 ): DemoTask {
   const taskText = rawText.trim();
+  const criteria = completionCriteria?.map((c) => c.trim()).filter(Boolean);
   return {
     id,
     projectId,
     title: deriveTitle(taskText, title),
     taskText,
+    ...(criteria?.length ? { completionCriteria: criteria } : {}),
     // N1 Triage：任务创建即带上按需求推荐的团队，团队随任务走。
     assignedAgentIds: recommendAgents(taskText).ids,
     stage: 'analyzing',

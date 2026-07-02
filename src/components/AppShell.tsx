@@ -9,6 +9,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useDemoStore } from '@/store/useDemoStore';
+import { apiConfig } from '@/api/config';
 import type { DemoStage } from '@/types';
 import { cn } from '@/lib/utils';
 import { useResizablePane } from '@/lib/useResizablePane';
@@ -50,6 +51,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tasks = useDemoStore((s) => s.tasks);
   const activeTaskId = useDemoStore((s) => s.activeTaskId);
   const closeProject = useDemoStore((s) => s.closeProject);
+  const backendEvents = useDemoStore((s) => s.backendEvents);
+  const eventChannelStatus = useDemoStore((s) => s.eventChannelStatus);
+
+  // 事件链路遥测：mock 走本地喂入（LOCAL），真连接显示 WS 通道状态
+  const eventLink = apiConfig.useMock
+    ? { label: 'LOCAL', className: 'text-slate-400', dot: 'bg-slate-500' }
+    : eventChannelStatus === 'connected'
+      ? { label: 'LIVE', className: 'text-emerald-300', dot: 'bg-emerald-400' }
+      : eventChannelStatus === 'connecting'
+        ? { label: 'SYNC…', className: 'text-command-soft', dot: 'bg-command animate-blink' }
+        : { label: 'OFFLINE', className: 'text-slate-500', dot: 'bg-slate-600' };
+  const latestEvent = backendEvents[0];
 
   const {
     size: navWidth,
@@ -207,6 +220,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="flex items-center gap-2 px-4">
             <span className="callsign text-[9px] text-slate-600">OWNER</span>
             <span className="text-slate-300">{activeNode ? activeNode.owner : '—'}</span>
+          </span>
+          <span className="h-3.5 w-px bg-line-bright" />
+          <span className="flex items-center gap-2 px-4">
+            <span className={cn('led h-2 w-2', eventLink.dot)} />
+            <span className="callsign text-[9px] text-slate-600">EVENTS</span>
+            <span className={cn('callsign text-[10px]', eventLink.className)}>
+              {eventLink.label}
+            </span>
+            {latestEvent && <span className="text-slate-500">{latestEvent.event_type}</span>}
           </span>
           <span className="ml-auto flex items-center gap-2 pl-4">
             <span

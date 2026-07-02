@@ -23,7 +23,9 @@ import {
 } from '@/data/workflow';
 import { captureSnapshot, nextTimelineId, resetTimelineSeq } from '@/lib/snapshot';
 import { createTask as apiCreateTask } from '@/api/client';
+import { onEvent, onEventChannelStatus, type EventChannelStatus } from '@/api/events';
 import { toTaskCreateRequest } from '@/api/map';
+import type { Event as ContractEvent } from '@/api/types';
 
 const DOWNSTREAM_UPDATED_IDS = [NODE_IDS.gate, 'n15-merge-auth', NODE_IDS.complete];
 
@@ -202,6 +204,10 @@ type DemoState = PartialExecState &
     projects: Project[];
     /** null = 停留在启动页；有值 = 已进入工作区 */
     activeProjectId: string | null;
+    /** 后端事件通道推来的流程事件（新在前，封顶保留 EVENT_LOG_CAP 条） */
+    backendEvents: ContractEvent[];
+    /** WS 事件通道连接态（mock 模式恒为 disconnected，事件走本地喂入） */
+    eventChannelStatus: EventChannelStatus;
 
     createProject: (name: string, description?: string) => void;
     openProject: (projectId: string) => void;
@@ -220,7 +226,7 @@ type DemoState = PartialExecState &
     disableTeamCustomization: () => void;
     resetTeamToRecommended: () => void;
     setTaskText: (text: string) => void;
-    createTask: (rawText: string, title?: string) => void;
+    createTask: (rawText: string, title?: string, completionCriteria?: string[]) => void;
     startTask: () => void;
     useRecommendedWorkflow: () => void;
     nextStep: () => void;
@@ -235,6 +241,9 @@ type DemoState = PartialExecState &
     restoreCheckpoint: (eventId: string) => void;
   };
 
+/** 事件日志封顶条数：只做近期观测窗口，完整审计流由 C 持久化（F 不重放）。 */
+const EVENT_LOG_CAP = 200;
+
 /** 空白启动态：无项目、无任务，停在启动页由用户新建。 */
 const blankState = () => ({
   currentPage: 'agents' as PageKey,
@@ -245,6 +254,8 @@ const blankState = () => ({
   activeTaskId: null as string | null,
   projects: [] as Project[],
   activeProjectId: null as string | null,
+  backendEvents: [] as ContractEvent[],
+  eventChannelStatus: 'disconnected' as EventChannelStatus,
   ...emptyTaskFields(),
 });
 
@@ -524,7 +535,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       };
     }),
 
-  createTask: (rawText, title) => {
+  createTask: (rawText, title, completionCriteria) => {
     const text = rawText.trim();
     if (!text) return;
     const state = get();
@@ -536,7 +547,13 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       : state.tasks;
     // N1 Triage：读需求 → 建议角色/组队（C 的职责）。团队随任务创建（createRequirementTask
     // 内部按需求推荐），由 taskToState 带入实时状态；输入需求后直接进 Task Board 看分析。
-    const newTask = createRequirementTask(uid('task'), state.activeProjectId, text, title);
+    const newTask = createRequirementTask(
+      uid('task'),
+      state.activeProjectId,
+      text,
+      title,
+      completionCriteria,
+    );
     set({
       tasks: [...persisted, newTask],
       activeTaskId: newTask.id,
@@ -547,7 +564,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     });
     // N2 创建 Task：本地乐观创建后异步提交协调器（C），受理成功回填权威 task_id。
     // 提交失败不回滚本地任务（F 侧演示流仍可走），仅留日志待重试机制补上。
-    void apiCreateTask(toTaskCreateRequest(text))
+    void apiCreateTask(toTaskCreateRequest(text, completionCriteria))
       .then((contractTask) => {
         set((s) => ({
           tasks: s.tasks.map((t) =>
@@ -970,3 +987,15 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     });
   },
 }));
+
+// ── 事件通道接线（模块级，应用生命周期内常驻订阅） ──
+// mock 模式下 onEvent 不建 WS 连接，事件由 client.ts mock 路径本地喂入，
+// 消费链路（追加到 backendEvents 观测窗口）与真连接完全一致。
+onEvent((event) => {
+  useDemoStore.setState((s) => ({
+    backendEvents: [event, ...s.backendEvents].slice(0, EVENT_LOG_CAP),
+  }));
+});
+onEventChannelStatus((eventChannelStatus) => {
+  useDemoStore.setState({ eventChannelStatus });
+});

@@ -12,6 +12,7 @@
  * 调用方无需感知 mock 与否。
  */
 import { apiConfig } from './config';
+import { emitLocalEvent } from './events';
 import { SCHEMA_VERSION } from './types';
 import type { Task, TaskCreateRequest } from './types';
 
@@ -69,6 +70,20 @@ function mockCreatedTask(req: TaskCreateRequest): Task {
 
 /** N2 创建 Task：把需求提交给协调器（C），返回权威 `Task`。 */
 export async function createTask(req: TaskCreateRequest): Promise<Task> {
-  if (apiConfig.useMock) return mockCreatedTask(req);
+  if (apiConfig.useMock) {
+    const task = mockCreatedTask(req);
+    // 后端 N2 受理即 emit task.created（全流程图 N2 行）；mock 同形复现，
+    // 让事件通道的消费链路在无后端时也真实走通。
+    emitLocalEvent({
+      event_id: `evt-${task.task_id}`,
+      event_type: 'task.created',
+      subject_id: task.task_id,
+      task_id: task.task_id,
+      payload: { status: task.status },
+      created_at: task.created_at,
+      schema_version: SCHEMA_VERSION,
+    });
+    return task;
+  }
   return postJson<TaskCreateRequest, Task>(TASKS_PATH, req);
 }
