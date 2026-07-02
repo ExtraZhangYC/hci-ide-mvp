@@ -11,7 +11,7 @@
  * 映射方向恒为 UI → 契约（有损收敛）：UI 词表更细，向后端较粗的 v0 枚举收拢。
  */
 import type { CouncilVerdict, TaskStatusCore } from '@/types';
-import type { CouncilDecision, TaskStatus } from '@/api/types';
+import type { AcpFsMethod, CouncilDecision, FileOpIntent, TaskStatus } from '@/api/types';
 
 /**
  * 协调器主状态：UI 展示态 → 契约 `TaskStatus`。
@@ -45,4 +45,17 @@ export const UI_TO_CONTRACT_COUNCIL_VERDICT: Record<CouncilVerdict, ContractCoun
   needs_human: 'defer',
   request_revision: 'reject',
   reject: 'reject',
+};
+
+/**
+ * 文件操作：F 展示语义 → 方向 A 真正调用的 ACP 文件方法（有损收敛）。
+ * F 把 write / create 两种展示细分都收拢到同一个 `fs/write_text_file`
+ * （后端无独立 create，见 ./types/fileops 说明）。
+ * 若 A 增删/改名文件方法、或 F 增删 `FileOpIntent`，此表缺键/目标非法 → `tsc` 报错。
+ */
+export const UI_FILE_INTENT_TO_ACP_METHOD: Record<FileOpIntent, AcpFsMethod> = {
+  read: 'fs/read_text_file',
+  write: 'fs/write_text_file',
+  create: 'fs/write_text_file',
+  list: 'fs/list_directory',
 };
